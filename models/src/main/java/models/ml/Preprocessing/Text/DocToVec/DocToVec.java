@@ -1,4 +1,4 @@
-package models.ml.DatasetHandler;
+package models.ml.Preprocessing.Text.DocToVec;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
