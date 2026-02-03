@@ -12,7 +12,7 @@ import models.ml.DatasetHandler.helpers.DatasetSplit;
 
 public class DatasetLoader {
 
-    private final Dataset dataset;
+    public final Dataset dataset;
 
     public DatasetLoader(String path, DatasetConfig config, String labelColumn, Character delimiter)
             throws IOException, SQLException {
@@ -97,7 +97,7 @@ public class DatasetLoader {
         }
     }
 
-    private DatasetSplit randomSplit(double trainPercent) {
+    public DatasetSplit randomSplit(double trainPercent) {
 
         double[][] data = dataset.data;
         int n = data.length;
@@ -115,7 +115,7 @@ public class DatasetLoader {
         return new DatasetSplit(train, test);
     }
 
-    private DatasetSplit stratifiedSplit(double trainPercent) {
+    public DatasetSplit stratifiedSplit(double trainPercent) {
 
         double[][] data = dataset.data;
         int labelIndex = data[0].length - 1;
@@ -147,7 +147,7 @@ public class DatasetLoader {
                 test.toArray(new double[0][]));
     }
 
-    private DatasetSplit timeSeriesSplit(double trainPercent) {
+    public DatasetSplit timeSeriesSplit(double trainPercent) {
 
         double[][] data = dataset.data;
         int n = data.length;
@@ -159,7 +159,7 @@ public class DatasetLoader {
         return new DatasetSplit(train, test);
     }
 
-    private static Dataset loadCsv(String path, DatasetConfig config, String labelColumn, Character delimiter)
+    public static Dataset loadCsv(String path, DatasetConfig config, String labelColumn, Character delimiter)
             throws IOException {
 
         List<String> lines = Files.readAllLines(Paths.get(path), StandardCharsets.UTF_8);
@@ -196,7 +196,7 @@ public class DatasetLoader {
         return parseTable(rows, config, labelColumn);
     }
 
-    private static Dataset loadJson(String path,
+    public static Dataset loadJson(String path,
             DatasetConfig config,
             String labelColumn)
             throws IOException {
@@ -227,7 +227,7 @@ public class DatasetLoader {
         return parseTable(rows, config, labelColumn);
     }
 
-    private static Dataset loadSqlite(String dbPath, String labelColumn) throws SQLException {
+    public static Dataset loadSqlite(String dbPath, String labelColumn) throws SQLException {
         if (labelColumn == null) {
             throw new IllegalStateException(
                     "No label column specified. Supervised models require labels.");
@@ -265,7 +265,7 @@ public class DatasetLoader {
         
     }
 
-    private static Dataset parseTable(List<String[]> rows, DatasetConfig config, String labelColumn) {
+    public static Dataset parseTable(List<String[]> rows, DatasetConfig config, String labelColumn) {
 
         String[] header;
         if (config.hasHeader) {
@@ -321,7 +321,7 @@ public class DatasetLoader {
                 labelMap);
     }
 
-    private static String[] splitCsvLine(String line, Character delimiter) {
+    public static String[] splitCsvLine(String line, Character delimiter) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
@@ -348,9 +348,9 @@ public class DatasetLoader {
         return tokens.toArray(new String[0]);
     }
 
-    private static final Character[] COMMON_DELIMITERS = { ',', '\t', ';', '|' };
+    public static final Character[] COMMON_DELIMITERS = { ',', '\t', ';', '|' };
 
-    private static Character detectDelimiter(List<String> lines) {
+    public static Character detectDelimiter(List<String> lines) {
 
         int sampleSize = Math.min(lines.size(), 20);
         Character best = ',';
@@ -381,7 +381,7 @@ public class DatasetLoader {
         return best;
     }
 
-    private static int countDelimiterOutsideQuotes(String s, Character delim) {
+    public static int countDelimiterOutsideQuotes(String s, Character delim) {
         boolean inQuotes = false;
         int count = 0;
 
@@ -394,14 +394,14 @@ public class DatasetLoader {
         return count;
     }
 
-    private static int indexOf(String[] arr, String key) {
+    public static int indexOf(String[] arr, String key) {
         for (int i = 0; i < arr.length; i++)
             if (arr[i].equalsIgnoreCase(key))
                 return i;
         return -1;
     }
 
-    private static double parseDouble(String s) {
+    public static double parseDouble(String s) {
         try {
             return Double.parseDouble(s.trim());
         } catch (Exception e) {
@@ -409,11 +409,11 @@ public class DatasetLoader {
         }
     }
 
-    private static String strip(String s) {
+    public static String strip(String s) {
         return s.trim().replace("\"", "");
     }
 
-    private static String getExtension(String path) {
+    public static String getExtension(String path) {
         int i = path.lastIndexOf('.');
         return (i < 0) ? "" : path.substring(i + 1);
     }

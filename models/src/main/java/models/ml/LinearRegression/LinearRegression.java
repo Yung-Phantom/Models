@@ -1,58 +1,110 @@
+/**
+ * Linear Regression Model
+ *
+ * <p>Supports multiple methods for linear regression: normal equation and gradient descent.
+ * <p>Configurable learning rate and epochs.
+ * <p>Evaluation: MSE, R² score
+ *
+ * @author Justice
+ * @version 1.1
+ */
 package models.ml.LinearRegression;
 
-/**
- * Linear Regression model.
- * 
- * Supports:
- * - Normal Equation
- * - Gradient Descent
- * 
- * @author Kotei Justice
- * @version 1.0
- */
 public class LinearRegression {
 
-    private AbstractLinearRegression lr;
-    private double[][] dataset;
-    private double[][] points;
-    private String method;
+    /**
+     * Abstract Linear Regression Model
+     */
+    public AbstractLinearRegression lr;
 
-    public LinearRegression(double[][] dataset, double[][] points) {
-        this(dataset, points, "normal", 1, 10);
-    }
+    /**
+     * Dataset
+     */
+    public double[][] dataset;
 
-    public LinearRegression(double[][] dataset, double[][] points, String method) {
-        this(dataset, points, method, 1, 10);
-    }
+    /**
+     * Points (features, labels)
+     */
+    public double[][] points;
 
-    public LinearRegression(double[][] dataset, double[][] points, double learningRate, int epochs) {
-        this(dataset, points, "normal", learningRate, epochs);
-    }
+    /**
+     * Method for linear regression
+     */
+    public String method;
 
+    /**
+     * Constructor
+     * 
+     * @param dataset      dataset
+     * @param points       points (features, labels)
+     * @param method       method for linear regression
+     * @param learningRate learning rate for gradient descent
+     * @param epochs       number of epochs for gradient descent
+     */
     public LinearRegression(double[][] dataset, double[][] points, String method, double learningRate, int epochs) {
         this.dataset = dataset;
         this.points = points;
-        this.method = method;
+        this.method = method.toLowerCase();
         this.lr = new AbstractLinearRegression(dataset, method, learningRate, epochs);
     }
 
-    public double[] predictAll() {
-        double[] preds = new double[points.length];
-        for (int i = 0; i < points.length; i++) {
-            preds[i] = predict(points[i]);
-        }
-        return preds;
+    /**
+     * Constructor
+     * 
+     * @param dataset dataset
+     * @param points  points (features, labels)
+     * @param method  method for linear regression
+     */
+    public LinearRegression(double[][] dataset, double[][] points, String method) {
+        this(dataset, points, method, 1.0, 10);
     }
 
+    /**
+     * Constructor
+     * 
+     * @param dataset dataset
+     * @param points  points (features, labels)
+     */
+    public LinearRegression(double[][] dataset, double[][] points) {
+        this(dataset, points, "normal", 1.0, 10);
+    }
+
+    /**
+     * Constructor
+     * 
+     * @param dataset      dataset
+     * @param points       points (features, labels)
+     * @param learningRate learning rate for gradient descent
+     * @param epochs       number of epochs for gradient descent
+     */
+    public LinearRegression(double[][] dataset, double[][] points, double learningRate, int epochs) {
+        this(dataset, points, "gradientDescent", learningRate, epochs);
+    }
+
+    /**
+     * Predict for a single row
+     * 
+     * @param row row
+     * @return prediction
+     */
     public double predict(double[] row) {
-        double[] w = lr.getWeights();
-        double y = w[0];
-        for (int j = 0; j < row.length - 1; j++) {
-            y += w[j + 1] * row[j];
-        }
-        return y;
+        return lr.predictRow(row);
     }
 
+    /**
+     * Predict for all points
+     * 
+     * @return predictions
+     */
+    public double[] predictAll() {
+        return lr.predict(points);
+    }
+
+    /**
+     * Mean Squared Error (MSE)
+     * 
+     * @return MSE
+     */
     public double mse() {
         double sum = 0.0;
         for (int i = 0; i < points.length; i++) {
@@ -63,7 +115,9 @@ public class LinearRegression {
     }
 
     /**
-     * R² score.
+     * R² score
+     * 
+     * @return R² score
      */
     public double r2() {
         double mean = 0.0;

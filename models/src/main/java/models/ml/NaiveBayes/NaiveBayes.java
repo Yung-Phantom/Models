@@ -7,59 +7,50 @@ public class NaiveBayes {
     public double[][] points;
     public AbstractNaiveBayes nb;
 
+    public NaiveBayes(double[][] dataset, double[][] points) {
+        this(dataset, points, "gaussian", 1.0);
+    }
     public NaiveBayes(double[][] dataset, double[][] points, String method) {
-        this.dataset = dataset;
-        this.points = points;
-        this.nb = new AbstractNaiveBayes(dataset, points, method);
+        this(dataset, points, method, 1.0);
     }
 
     public NaiveBayes(double[][] dataset, double[][] points, String method, double alpha) {
         this.dataset = dataset;
         this.points = points;
-        this.nb = new AbstractNaiveBayes(dataset, points, method, alpha);
+        this.nb = new AbstractNaiveBayes(dataset, method, alpha);
     }
 
     public int predict(int queryIndex) {
-        double[] query = points[queryIndex];
-        Map<Integer, Double> probs = nb.computeProbabilities(query);
-        return probs.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .get()
-                .getKey();
+        Map<Integer, Double> logProbs = predictProbability(queryIndex);
+
+        int best = -1;
+        double max = Double.NEGATIVE_INFINITY;
+
+        for (Map.Entry<Integer, Double> e : logProbs.entrySet()) {
+            if (e.getValue() > max) {
+                max = e.getValue();
+                best = e.getKey();
+            }
+        }
+        return best;
     }
 
     /** Returns normalized probabilities that sum to 1.0 */
-    public Map<Integer, Double> predictProbability(int queryIndex) {
-        double[] query = points[queryIndex];
-        return nb.computeProbabilities(query);
-    }
-
-    /** Returns raw unnormalized log-probabilities (for debugging) */
-    public Map<Integer, Double> predictLogProbability(int queryIndex) {
-        double[] query = points[queryIndex];
-        return nb.computeLogProbabilities(query);
+    public Map<Integer, Double> predictProbability(int i) {
+        return nb.computeProbabilities(points[i]);
     }
 
     public int[] predictAll() {
-        int[] labels = new int[points.length];
+        int[] preds = new int[points.length];
         for (int i = 0; i < points.length; i++)
-            labels[i] = predict(i);
-        return labels;
-    }
-
-    public List<Map<Integer, Double>> predictAllProbability() {
-        List<Map<Integer, Double>> list = new ArrayList<>();
-        for (int i = 0; i < points.length; i++)
-            list.add(predictProbability(i));
-        return list;
+            preds[i] = predict(i);
+        return preds;
     }
 
     public double accuracy() {
         int correct = 0;
         for (int i = 0; i < points.length; i++) {
-            int predicted = predict(i);
-            int actual = (int) points[i][points[i].length - 1];
-            if (predicted == actual)
+            if (predict(i) == (int) points[i][points[i].length - 1])
                 correct++;
         }
         return (double) correct / points.length;

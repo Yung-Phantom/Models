@@ -3,42 +3,48 @@ package models.ml.NaiveBayes;
 import java.util.*;
 
 public class AbstractNaiveBayes {
-    private double[][] dataset;
-    private double[][] points;
-    private int numFeatures;
-    private Map<Integer, Integer> classCounts = new HashMap<>();
-    private int totalSamples = 0;
-    private String method;
-    private double alpha;
+    public double[][] dataset;
+    public int numFeatures;
+    public String method;
+    public double alpha;
 
-    private Map<Integer, double[]> means = new HashMap<>();
-    private Map<Integer, double[]> variances = new HashMap<>();
+    public Map<Integer, Integer> classCounts = new HashMap<>();
+    public int totalSamples = 0;
 
-    private Map<Integer, double[]> multinomialFeatureCounts = new HashMap<>();
-    private Map<Integer, Double> multinomialTotalFeatureCount = new HashMap<>();
+    private int[] classes;
+    private double[] logPriors;
 
-    private Map<Integer, double[]> bernoulliFeatureCounts = new HashMap<>();
+    public Map<Integer, double[]> means = new HashMap<>();
+    public Map<Integer, double[]> variances = new HashMap<>();
 
-    public AbstractNaiveBayes(double[][] dataset, double[][] points, String method) {
-        this(dataset, points, method, 1.0);
+    public Map<Integer, double[]> multinomialFeatureCounts = new HashMap<>();
+    public Map<Integer, Double> multinomialTotalFeatureCount = new HashMap<>();
+
+    public Map<Integer, double[]> bernoulliFeatureCounts = new HashMap<>();
+
+    public AbstractNaiveBayes(double[][] dataset, String method) {
+        this(dataset, method, 1.0);
     }
 
-    public AbstractNaiveBayes(double[][] dataset, double[][] points, String method, double alpha) {
+    public AbstractNaiveBayes(double[][] dataset, String method, double alpha) {
         this.dataset = dataset;
-        this.points = points;
         this.numFeatures = dataset[0].length - 1;
         this.method = method.toLowerCase();
         this.alpha = alpha;
 
         // compute class counts and prepare parameters
         computeClassCounts();
+        cacheClassesAndPriors();
         switch (this.method) {
             case "gaussian":
+            case "g":
                 computeGaussianParameters();
                 break;
+            case "m":
             case "multinomial":
                 computeMultinomialParameters();
                 break;
+            case "b":
             case "bernoulli":
                 computeBernoulliParameters();
                 break;
@@ -47,7 +53,7 @@ public class AbstractNaiveBayes {
         }
     }
 
-    private void computeClassCounts() {
+    public void computeClassCounts() {
         for (double[] row : dataset) {
             int label = (int) row[numFeatures];
             classCounts.put(label, classCounts.getOrDefault(label, 0) + 1);
@@ -55,11 +61,24 @@ public class AbstractNaiveBayes {
         }
     }
 
-    private void computeGaussianParameters() {
+    private void cacheClassesAndPriors() {
+        int k = classCounts.size();
+        classes = new int[k];
+        logPriors = new double[k];
+
+        int i = 0;
+        for (Map.Entry<Integer, Integer> e : classCounts.entrySet()) {
+            classes[i] = e.getKey();
+            logPriors[i] = Math.log((double) e.getValue() / totalSamples);
+            i++;
+        }
+    }
+
+    public void computeGaussianParameters() {
         Map<Integer, double[]> sums = new HashMap<>();
         Map<Integer, double[]> sqSums = new HashMap<>();
 
-        for (int label : classCounts.keySet()) {
+        for (int label : classes) {
             sums.put(label, new double[numFeatures]);
             sqSums.put(label, new double[numFeatures]);
         }
@@ -74,26 +93,27 @@ public class AbstractNaiveBayes {
             }
         }
 
-        for (int label : classCounts.keySet()) {
+        for (int label : classes) {
             int n = classCounts.get(label);
             double[] mean = new double[numFeatures];
-            double[] var = new double[numFeatures];
+            double[] variance = new double[numFeatures];
             double[] s = sums.get(label);
             double[] ss = sqSums.get(label);
+
             for (int j = 0; j < numFeatures; j++) {
                 mean[j] = s[j] / n;
-                var[j] = (ss[j] / n) - (mean[j] * mean[j]);
-                if (var[j] <= 1e-9)
-                    var[j] = 1e-9;
+                variance[j] = (ss[j] / n) - mean[j] * mean[j];
+                if (variance[j] < 1e-9)
+                    variance[j] = 1e-9;
             }
             means.put(label, mean);
-            variances.put(label, var);
+            variances.put(label, variance);
         }
-        
+
     }
 
-    private void computeMultinomialParameters() {
-        for (int label : classCounts.keySet()) {
+    public void computeMultinomialParameters() {
+        for (int label : classes) {
             multinomialFeatureCounts.put(label, new double[numFeatures]);
             multinomialTotalFeatureCount.put(label, 0.0);
         }
@@ -110,7 +130,7 @@ public class AbstractNaiveBayes {
         }
     }
 
-    private void computeBernoulliParameters() {
+    public void computeBernoulliParameters() {
         for (int label : classCounts.keySet()) {
             bernoulliFeatureCounts.put(label, new double[numFeatures]);
         }
@@ -125,41 +145,36 @@ public class AbstractNaiveBayes {
         }
     }
 
-    /**
-     * Returns unnormalized log-probabilities (label -> log P(label) + log
-     * P(x|label))
-     */
     public Map<Integer, Double> computeLogProbabilities(double[] query) {
         Map<Integer, Double> logProbs = new HashMap<>();
 
-        for (int label : classCounts.keySet()) {
-            double prior = Math.log((double) classCounts.get(label) / totalSamples);
-            double logLikelihood = 0.0;
+        for (int i = 0; i < classes.length; i++) {
+            int label = classes[i];
+            double logLike;
 
             switch (method) {
                 case "gaussian":
-                    logLikelihood = gaussianLogLikelihood(label, query);
+                case "g":
+                    logLike = gaussianLogLikelihood(label, query);
                     break;
                 case "multinomial":
-                    logLikelihood = multinomialLogLikelihood(label, query);
+                case "m":
+                    logLike = multinomialLogLikelihood(label, query);
                     break;
                 case "bernoulli":
-                    logLikelihood = bernoulliLogLikelihood(label, query);
+                case "b":
+                    logLike = bernoulliLogLikelihood(label, query);
                     break;
                 default:
-                    throw new IllegalStateException("Unsupported method: " + method);
+                    throw new IllegalStateException();
             }
 
-            logProbs.put(label, prior + logLikelihood);
+            logProbs.put(label, logPriors[i] + logLike);
         }
 
         return logProbs;
     }
 
-    /**
-     * Returns normalized probabilities (label -> P(label | x)), sums to 1.
-     * Uses log-sum-exp for numerical stability.
-     */
     public Map<Integer, Double> computeProbabilities(double[] query) {
         Map<Integer, Double> logProbs = computeLogProbabilities(query);
 
@@ -173,7 +188,7 @@ public class AbstractNaiveBayes {
         return probs;
     }
 
-    private double logSumExp(Collection<Double> values) {
+    public double logSumExp(Collection<Double> values) {
         double max = Double.NEGATIVE_INFINITY;
         for (double v : values)
             if (v > max)
@@ -186,66 +201,40 @@ public class AbstractNaiveBayes {
         return max + Math.log(sum);
     }
 
-    private double gaussianLogLikelihood(int label, double[] query) {
+    public double gaussianLogLikelihood(int label, double[] query) {
         double[] mean = means.get(label);
-        double[] var = variances.get(label);
+        double[] variance = variances.get(label);
         double sum = 0.0;
         for (int j = 0; j < numFeatures; j++) {
-            double x = query[j];
-            double m = mean[j];
-            double v = var[j];
-            sum += -0.5 * Math.log(2 * Math.PI * v) - ((x - m) * (x - m)) / (2 * v);
+            double d = query[j] - mean[j];
+            sum += -0.5 * Math.log(2 * Math.PI * variance[j]) - (d * d) / (2 * variance[j]);
         }
         return sum;
     }
 
-    private double multinomialLogLikelihood(int label, double[] query) {
+    public double multinomialLogLikelihood(int label, double[] query) {
         double[] counts = multinomialFeatureCounts.get(label);
         double totalCount = multinomialTotalFeatureCount.get(label);
         double V = numFeatures; // number of features
         double sum = 0.0;
         for (int j = 0; j < numFeatures; j++) {
-            double qCount = query[j];
-            double prob = (counts[j] + alpha) / (totalCount + alpha * V);
-            if (qCount > 0)
-                sum += qCount * Math.log(prob);
+            if (query[j] > 0)
+                sum += query[j] * Math.log((counts[j] + alpha) / (totalCount + alpha * V));
         }
         return sum;
     }
 
-    private double bernoulliLogLikelihood(int label, double[] query) {
+    public double bernoulliLogLikelihood(int label, double[] query) {
         double[] counts = bernoulliFeatureCounts.get(label);
         int Nc = classCounts.get(label);
         double sum = 0.0;
+
         for (int j = 0; j < numFeatures; j++) {
             double x = query[j] != 0.0 ? 1.0 : 0.0;
             double p1 = (counts[j] + alpha) / (Nc + 2.0 * alpha);
-            double p0 = 1.0 - p1;
             p1 = Math.max(p1, 1e-12);
-            p0 = Math.max(p0, 1e-12);
-            sum += x * Math.log(p1) + (1.0 - x) * Math.log(p0);
+            sum += x * Math.log(p1) + (1.0 - x) * Math.log(1.0 - p1);
         }
         return sum;
-    }
-
-    public double[][] getDataset() {
-        return dataset;
-    }
-
-    public double[][] getPoints() {
-        return points;
-    }
-
-    // Optional getters for debugging/tests
-    public Map<Integer, Integer> getClassCounts() {
-        return Collections.unmodifiableMap(classCounts);
-    }
-
-    public Map<Integer, double[]> getMeans() {
-        return Collections.unmodifiableMap(means);
-    }
-
-    public Map<Integer, double[]> getVariances() {
-        return Collections.unmodifiableMap(variances);
     }
 }

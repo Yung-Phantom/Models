@@ -3,268 +3,257 @@ package models.ml.KNN;
 import java.util.*;
 
 /**
- * K-Nearest Neighbors algorithm.
+ * Optimized K-Nearest Neighbours algorithm.
  * 
  * @author Kotei Justice
- * @version 1.1
+ * @version 1.3
+ * 
+ *          This class provides an optimized K-Nearest Neighbours algorithm. It
+ *          uses a priority queue to keep track of the top K nearest neighbours.
+ *          The algorithm is optimized for speed and memory efficiency.
  */
 public class KNN {
 
-    /**
-     * Dataset used for the algorithm.
-     */
-    public double[][] dataset;
+    private final double[][] dataset;
+    private final double[][] points;
+    private final AbstractKNN knn;
+    private int k;
 
     /**
-     * Points to be queried.
-     */
-    public double[][] points;
-
-    /**
-     * Object containing the implementation of the KNN algorithm.
-     */
-    public AbstractKNN knn;
-
-    /**
-     * Distances between all query points and dataset points.
-     */
-    public double[][] distances;
-
-    /**
-     * Number of nearest neighbors to consider.
-     */
-    public int k;
-
-    /**
-     * Constructor for the KNN algorithm.
-     * 
-     * @param dataset dataset used for the algorithm
-     * @param points  points to be queried
-     * @param method  distance metric to be used
-     */
-    public KNN(double[][] dataset, double[][] points, String method) {
-        this.dataset = dataset;
-        this.points = points;
-        this.knn = new AbstractKNN(dataset, points, method);
-
-        // compute optimal k after knn is ready
-        this.k = optimal();
-    }
-
-    /**
-     * Constructor for the KNN algorithm with a given k.
-     * 
-     * @param dataset dataset used for the algorithm
-     * @param points  points to be queried
-     * @param method  distance metric to be used
-     * @param k       number of nearest neighbors to consider
+     * Constructor for the KNN algorithm with a specified method.
+     * Uses the provided value of K, or computes the optimal value if k == 0.
+     *
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
+     *                "minkowski").
+     * @param k       The initial value of K .
      */
     public KNN(double[][] dataset, double[][] points, String method, int k) {
         this.dataset = dataset;
         this.points = points;
         this.k = k;
-        this.knn = new AbstractKNN(dataset, points, method);
+        if (k == 0)
+            this.k=optimal();
+        this.knn = new AbstractKNN(dataset, method);
     }
 
     /**
-     * Get distances between all query points and dataset points.
-     * 
-     * @return distances between all query points and dataset points
+     * Constructor for the KNN algorithm with Euclidean distance.
+     *
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     * @param k       The value of K to use.
      */
-    public double[][] getDistances() {
-        distances = knn.getDistances();
-        return distances;
+    public KNN(double[][] dataset, double[][] points, int k) {
+        this(dataset, points, "euclidean", k);
     }
 
     /**
-     * Get the k nearest neighbors for a specific query point.
+     * Constructor for the KNN algorithm with a specified method and Minkowski
+     * parameter p.
+     * Uses the provided value of K, or computes the optimal value if k == 0.
      * 
-     * @param queryIndex index of the query point
-     * @return k nearest neighbors of the query point
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
+     *                "minkowski").
+     * @param k       The value of K to use.
+     * @param p       The Minkowski distance parameter.
      */
-    public LinkedHashMap<Integer, double[]> getNeighbours(int queryIndex) {
-        if (distances == null)
-            distances = knn.getDistances();
+    public KNN(double[][] dataset, double[][] points, String method, int k, int p) {
+        this.dataset = dataset;
+        this.points = points;
+        this.k = k;
+        if (k == 0)
+            this.k=optimal();
+        this.knn = new AbstractKNN(dataset, method, p);
+    }
 
-        LinkedHashMap<Integer, double[]> neighbors = new LinkedHashMap<>(k);
-        HashMap<Integer, Double> neighborDistances = new HashMap<>();
+    /**
+     * Constructor for the KNN algorithm with Minkowski distance and parameter p.
+     *
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     * @param k       The value of K to use.
+     * @param p       The Minkowski distance parameter.
+     */
+    public KNN(double[][] dataset, double[][] points, int k, int p) {
+        this(dataset, points, "minkowski", k, p);
+    }
+
+    /**
+     * Constructor for the KNN algorithm with a specified method.
+     * Automatically determines the optimal value of K.
+     * 
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
+     *                "minkowski").
+     */
+    public KNN(double[][] dataset, double[][] points, String method) {
+        this.dataset = dataset;
+        this.points = points;
+        this.knn = new AbstractKNN(dataset, method);
+        this.k = optimal();
+    }
+
+    /**
+     * Constructor for the KNN algorithm with Euclidean distance.
+     * Automatically determines the optimal value of K.
+     * 
+     * @param dataset The dataset to use.
+     * @param points  The points to query.
+     */
+    public KNN(double[][] dataset, double[][] points) {
+        this(dataset, points, "euclidean");
+    }
+
+    /**
+     * Get the K nearest neighbours of a given query point.
+     * 
+     * @param queryIndex The index of the query point.
+     * @return A map containing the K nearest neighbours and their distances.
+     */
+    public LinkedHashMap<Integer, Double> getNeighboursWithDistance(int queryIndex) {
+        double[] query = points[queryIndex];
+
+        PriorityQueue<Map.Entry<Integer, Double>> pq = new PriorityQueue<>(
+                Comparator.comparingDouble(Map.Entry<Integer, Double>::getValue).reversed());
 
         for (int i = 0; i < dataset.length; i++) {
-            double d = distances[queryIndex][i];
+            double d = knn.distance(query, dataset[i]);
 
-            if (neighbors.size() < k) {
-                neighbors.put(i, dataset[i]);
-                neighborDistances.put(i, d);
-            } else {
-                // find farthest neighbor
-                int worstIndex = -1;
-                double worstDistance = Double.NEGATIVE_INFINITY;
-                for (Map.Entry<Integer, Double> entry : neighborDistances.entrySet()) {
-                    if (entry.getValue() > worstDistance) {
-                        worstDistance = entry.getValue();
-                        worstIndex = entry.getKey();
-                    }
-                }
-                // replace if closer
-                if (d < worstDistance) {
-                    neighbors.remove(worstIndex);
-                    neighborDistances.remove(worstIndex);
-                    neighbors.put(i, dataset[i]);
-                    neighborDistances.put(i, d);
-                }
+            if (pq.size() < k) {
+                pq.offer(new AbstractMap.SimpleEntry<>(i, d));
+            } else if (d < pq.peek().getValue()) {
+                pq.poll();
+                pq.offer(new AbstractMap.SimpleEntry<>(i, d));
             }
         }
 
-        // order neighbors by distance ascending
-        List<Map.Entry<Integer, Double>> ordered = new ArrayList<>(neighborDistances.entrySet());
+        List<Map.Entry<Integer, Double>> ordered = new ArrayList<>(pq);
         ordered.sort(Comparator.comparingDouble(Map.Entry::getValue));
 
-        LinkedHashMap<Integer, double[]> orderedNeighbors = new LinkedHashMap<>();
+        LinkedHashMap<Integer, Double> neighbours = new LinkedHashMap<>();
         for (Map.Entry<Integer, Double> e : ordered) {
-            orderedNeighbors.put(e.getKey(), dataset[e.getKey()]);
+            neighbours.put(e.getKey(), e.getValue());
         }
-        return orderedNeighbors;
+        return neighbours;
     }
 
     /**
-     * predict the label for a specific query point.
+     * Predict the label of a given query point using the majority vote of its K
+     * nearest neighbours.
      * 
-     * @param queryIndex index of the query point
-     * @return predicted label for the query point
+     * @param queryIndex The index of the query point.
+     * @return The predicted label.
      */
     public int majority(int queryIndex) {
-        LinkedHashMap<Integer, double[]> neighbours = getNeighbours(queryIndex);
-
-        HashMap<Integer, Integer> labelCounts = new HashMap<>();
-        for (double[] point : neighbours.values()) {
-            int label = (int) point[point.length - 1];
-            labelCounts.put(label, labelCounts.getOrDefault(label, 0) + 1);
-        }
+        Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
 
         int predicted = -1, maxCount = -1;
-        for (Map.Entry<Integer, Integer> e : labelCounts.entrySet()) {
-            if (e.getValue() > maxCount) {
-                maxCount = e.getValue();
-                predicted = e.getKey();
+        HashMap<Integer, Integer> labelCounts = new HashMap<>();
+
+        for (int idx : neighbours.keySet()) {
+            int label = (int) dataset[idx][dataset[idx].length - 1];
+            int count = labelCounts.getOrDefault(label, 0) + 1;
+            labelCounts.put(label, count);
+
+            if (count > maxCount) {
+                maxCount = count;
+                predicted = label;
             }
         }
         return predicted;
     }
 
     /**
-     * predict class probabilities for a specific query point.
+     * Predict the probability distribution of a given query point using the
+     * majority vote of its K nearest neighbours.
      * 
-     * @param queryIndex index of the query point
-     * @return map of label -> probability
+     * @param queryIndex The index of the query point.
+     * @return A map containing the predicted probability distribution.
      */
     public Map<Integer, Double> probability(int queryIndex) {
-        LinkedHashMap<Integer, double[]> neighbours = getNeighbours(queryIndex);
+        Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
 
-        // Count occurrences of each label
-        HashMap<Integer, Integer> labelCounts = new HashMap<>();
-        for (double[] point : neighbours.values()) {
-            int label = (int) point[point.length - 1];
-            labelCounts.put(label, labelCounts.getOrDefault(label, 0) + 1);
+        HashMap<Integer, Integer> counts = new HashMap<>();
+        for (int idx : neighbours.keySet()) {
+            int label = (int) dataset[idx][dataset[idx].length - 1];
+            counts.put(label, counts.getOrDefault(label, 0) + 1);
         }
 
-        // Convert counts to probabilities
-        Map<Integer, Double> probabilities = new HashMap<>();
-        for (Map.Entry<Integer, Integer> e : labelCounts.entrySet()) {
-            probabilities.put(e.getKey(), (double) e.getValue() / k);
+        Map<Integer, Double> probs = new HashMap<>();
+        for (Map.Entry<Integer, Integer> e : counts.entrySet()) {
+            probs.put(e.getKey(), (double) e.getValue() / k);
         }
-
-        return probabilities;
+        return probs;
     }
 
     /**
-     * Compute the accuracy of the algorithm.
+     * Compute the accuracy of the algorithm using the leave-one-out
+     * cross-validation method.
      * 
-     * @return accuracy of the algorithm
+     * @return The accuracy of the algorithm.
      */
     public double accuracy() {
         int correct = 0;
-        if (distances == null)
-            distances = knn.getDistances();
-
-        for (int q = 0; q < points.length; q++) {
-            int predicted = majority(q);
-            int actual = (int) points[q][points[q].length - 1];
-            if (predicted == actual)
+        for (int i = 0; i < points.length; i++) {
+            if (majority(i) == (int) points[i][points[i].length - 1]) {
                 correct++;
+            }
         }
         return (double) correct / points.length;
     }
 
     /**
-     * Find the optimal k for the algorithm.
-     * 
-     * @return optimal k for the algorithm
+     * Compute the optimal value of K using leave-one-out cross-validation.
+     * Searches values of K from 1 up to sqrt(dataset length).
+     *
+     * @return The optimal value of K.
      */
     public int optimal() {
-        double maxAccuracy = 0.0;
-        int optimalK = 1;
+        double best = 0.0;
+        int bestK = 1;
 
-        for (int i = 1; i <= dataset.length; i++) {
+        int maxK = (int) Math.sqrt(dataset.length);
+        for (int i = 1; i <= maxK; i++) {
             this.k = i;
             double acc = accuracy();
-            if (acc > maxAccuracy) {
-                maxAccuracy = acc;
-                optimalK = i;
+            if (acc > best) {
+                best = acc;
+                bestK = i;
             }
         }
-        return optimalK;
+        return bestK;
     }
 
     /**
-     * predict the label for a specific query point.
+     * Predict the labels of all query points using the majority vote of their K
+     * nearest neighbours.
      * 
-     * @param queryIndex index of the query point
-     * @return predicted label for the query point
-     */
-    public int predictMajority(int queryIndex) {
-        return majority(queryIndex);
-    }
-
-    /**
-     * predict class probabilities for a specific query point.
-     * 
-     * @param queryIndex index of the query point
-     * @return map of label -> probability
-     */
-    public Map<Integer, Double> predictProbability(int queryIndex) {
-        return probability(queryIndex);
-    }
-
-    /**
-     * predict the labels for all query points.
-     * 
-     * @return labels for all query points
+     * @return The predicted labels.
      */
     public int[] predictAllMajority() {
-        int[] labels = new int[points.length];
+        int[] out = new int[points.length];
         for (int i = 0; i < points.length; i++) {
-            labels[i] = majority(i);
+            out[i] = majority(i);
         }
-        return labels;
+        return out;
     }
 
     /**
-     * predict class probabilities for all query points.
+     * Predict the probability distributions of all query points using the majority
+     * vote of their K nearest neighbours.
      * 
-     * @return list of maps of label -> probability
+     * @return A list containing the predicted probability distributions.
      */
     public List<Map<Integer, Double>> predictAllProbability() {
-        List<Map<Integer, Double>> probList = new ArrayList<>();
+        List<Map<Integer, Double>> list = new ArrayList<>();
         for (int i = 0; i < points.length; i++) {
-            probList.add(probability(i));
+            list.add(probability(i));
         }
-        return probList;
+        return list;
     }
 }
-//knnregressor
-//getneighbours should return distances too
-//research weighted knn
-//accuracy should work for both classification and regression
-//research GridSearchCV / cross_val_score
-//f1 score
-//confusion matrix

@@ -1,50 +1,86 @@
 package models.ml.LinearRegression;
 
 /**
- * Abstract class for Linear Regression computations.
- * Supports Normal Equation and Gradient Descent.
- * 
- * Convention:
- * - Last column of dataset is the target (y)
- * - All other columns are features (X)
- * 
- * @author Kotei Justice
- * @version 1.0
+ * Abstract class for Linear Regression.
+ * Implements linear regression using normal equation and gradient descent.
+ *
+ * @author Justice
+ * @version 1.1
  */
 public class AbstractLinearRegression {
 
-    protected double[][] dataset;
-    private String method;
-    protected int numSamples;
-    protected int numFeatures;
+    /**
+     * Dataset for linear regression.
+     */
+    public double[][] dataset;
 
-    protected double[] weights;
+    /**
+     * Method for linear regression.
+     * Supports "normal" and "gradientDescent".
+     */
+    public String method;
 
+    /**
+     * Number of samples in the dataset.
+     */
+    public int numSamples;
+
+    /**
+     * Number of features in the dataset.
+     */
+    public int numFeatures;
+
+    /**
+     * Weights for linear regression.
+     */
+    public double[] weights;
+
+    /**
+     * Constructor.
+     * @param dataset dataset for linear regression
+     */
     public AbstractLinearRegression(double[][] dataset) {
         this(dataset, "normal", 1, 10);
     }
 
+    /**
+     * Constructor.
+     * @param dataset dataset for linear regression
+     * @param method method for linear regression
+     */
     public AbstractLinearRegression(double[][] dataset, String method) {
         this(dataset, method, 1, 10);
     }
 
+    /**
+     * Constructor.
+     * @param dataset dataset for linear regression
+     * @param learningRate learning rate for gradient descent
+     * @param epochs number of epochs for gradient descent
+     */
     public AbstractLinearRegression(double[][] dataset, double learningRate, int epochs) {
         this(dataset, "normal", learningRate, epochs);
     }
 
+    /**
+     * Constructor.
+     * @param dataset dataset for linear regression
+     * @param method method for linear regression
+     * @param learningRate learning rate for gradient descent
+     * @param epochs number of epochs for gradient descent
+     */
     public AbstractLinearRegression(double[][] dataset, String method, double learningRate, int epochs) {
         this.dataset = dataset;
         this.method = method;
         this.numSamples = dataset.length;
         this.numFeatures = dataset[0].length - 1;
 
-        String normalized = method.toLowerCase();
-        switch (normalized) {
+        switch (method.toLowerCase()) {
             case "normal":
             case "n":
                 fitNormalEquation();
                 break;
-            case "gradientDescent":
+            case "gradientdescent":
             case "gd":
                 fitGradientDescent(learningRate, epochs);
                 break;
@@ -55,8 +91,8 @@ public class AbstractLinearRegression {
     }
 
     /**
-     * Train using the Normal Equation:
-     * w = (X^T X)^-1 X^T y
+     * Fits linear regression model using normal equation.
+     * @return weights for linear regression
      */
     public double[] fitNormalEquation() {
         double[][] X = buildDesignMatrix();
@@ -72,13 +108,13 @@ public class AbstractLinearRegression {
     }
 
     /**
-     * Train using Gradient Descent.
-     *
-     * @param learningRate step size
-     * @param epochs       number of iterations
+     * Fits linear regression model using gradient descent.
+     * @param learningRate learning rate for gradient descent
+     * @param epochs number of epochs for gradient descent
+     * @return weights for linear regression
      */
     public double[] fitGradientDescent(double learningRate, int epochs) {
-        weights = new double[numFeatures + 1]; // bias included
+        weights = new double[numFeatures + 1];
 
         for (int epoch = 0; epoch < epochs; epoch++) {
             double[] gradients = new double[weights.length];
@@ -87,7 +123,7 @@ public class AbstractLinearRegression {
                 double prediction = predictRow(dataset[i]);
                 double error = prediction - dataset[i][numFeatures];
 
-                gradients[0] += error; // bias gradient
+                gradients[0] += error;
                 for (int j = 0; j < numFeatures; j++) {
                     gradients[j + 1] += error * dataset[i][j];
                 }
@@ -101,22 +137,40 @@ public class AbstractLinearRegression {
     }
 
     /**
-     * Predict a single row (training or test).
+     * Predicts label for a single query point.
+     * @param row query point
+     * @return label for query point
      */
-    protected double predictRow(double[] row) {
-        double y = weights[0]; // bias
+    public double predictRow(double[] row) {
+        double y = weights[0];
         for (int j = 0; j < numFeatures; j++) {
             y += weights[j + 1] * row[j];
         }
         return y;
     }
 
-    /* ===================== Helpers ===================== */
 
-    protected double[][] buildDesignMatrix() {
+    /**
+     * Predicts labels for a set of query points.
+     * @param X set of query points
+     * @return labels for query points
+     */
+    public double[] predict(double[][] X) {
+        double[] predictions = new double[X.length];
+        for (int i = 0; i < X.length; i++) {
+            predictions[i] = predictRow(X[i]);
+        }
+        return predictions;
+    }
+    
+    /**
+     * Builds design matrix for linear regression.
+     * @return design matrix
+     */
+    public double[][] buildDesignMatrix() {
         double[][] X = new double[numSamples][numFeatures + 1];
         for (int i = 0; i < numSamples; i++) {
-            X[i][0] = 1.0; // bias
+            X[i][0] = 1.0;
             for (int j = 0; j < numFeatures; j++) {
                 X[i][j + 1] = dataset[i][j];
             }
@@ -124,7 +178,11 @@ public class AbstractLinearRegression {
         return X;
     }
 
-    protected double[] extractTarget() {
+    /**
+     * Extracts target from dataset.
+     * @return target
+     */
+    public double[] extractTarget() {
         double[] y = new double[numSamples];
         for (int i = 0; i < numSamples; i++) {
             y[i] = dataset[i][numFeatures];
@@ -132,34 +190,57 @@ public class AbstractLinearRegression {
         return y;
     }
 
-    /* ---------- Linear Algebra ---------- */
-
-    protected static double[][] transpose(double[][] A) {
+    /**
+     * Transposes matrix.
+     * @param A matrix
+     * @return transposed matrix
+     */
+    public static double[][] transpose(double[][] A) {
         double[][] T = new double[A[0].length][A.length];
         for (int i = 0; i < A.length; i++)
-            for (int j = 0; j < A[0].length; j++)
+            for (int j = 0; j < A[0].length; j++) {
                 T[j][i] = A[i][j];
+            }
         return T;
     }
 
-    protected static double[][] multiply(double[][] A, double[][] B) {
+    /**
+     * Multiplies matrix.
+     * @param A first matrix
+     * @param B second matrix
+     * @return product matrix
+     */
+    public static double[][] multiply(double[][] A, double[][] B) {
         double[][] C = new double[A.length][B[0].length];
         for (int i = 0; i < A.length; i++)
             for (int j = 0; j < B[0].length; j++)
-                for (int k = 0; k < B.length; k++)
+                for (int k = 0; k < B.length; k++) {
                     C[i][j] += A[i][k] * B[k][j];
+                }
         return C;
     }
 
-    protected static double[] multiply(double[][] A, double[] x) {
+    /**
+     * Multiplies matrix and vector.
+     * @param A matrix
+     * @param x vector
+     * @return product vector
+     */
+    public static double[] multiply(double[][] A, double[] x) {
         double[] y = new double[A.length];
         for (int i = 0; i < A.length; i++)
-            for (int j = 0; j < x.length; j++)
+            for (int j = 0; j < x.length; j++) {
                 y[i] += A[i][j] * x[j];
+            }
         return y;
     }
 
-    protected static double[][] invert(double[][] A) {
+    /**
+     * Inverts matrix.
+     * @param A matrix
+     * @return inverted matrix
+     */
+    public static double[][] invert(double[][] A) {
         int n = A.length;
         double[][] I = new double[n][n];
         double[][] B = new double[n][n];
@@ -171,6 +252,10 @@ public class AbstractLinearRegression {
 
         for (int i = 0; i < n; i++) {
             double pivot = B[i][i];
+            if (Math.abs(pivot) < 1e-12) {
+                throw new ArithmeticException("Matrix is singular");
+            }
+
             for (int j = 0; j < n; j++) {
                 B[i][j] /= pivot;
                 I[i][j] /= pivot;
@@ -188,6 +273,10 @@ public class AbstractLinearRegression {
         return I;
     }
 
+    /**
+     * Gets weights for linear regression.
+     * @return weights
+     */
     public double[] getWeights() {
         return weights;
     }
