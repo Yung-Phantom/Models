@@ -1,30 +1,36 @@
 package models.ml;
 
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import models.ml.DatasetHandler.DatasetLoader;
-import models.ml.DatasetHandler.helpers.DatasetConfig;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.KNN.KNN;
-import models.ml.LinearRegression.LinearRegression;
-import models.ml.LogisticRegression.LogisticRegression;
 import models.ml.NaiveBayes.NaiveBayes;
-import models.ml.SVM.SVM;
+import models.ml.Preprocessing.Text.TFIDF.TFIDF;
 
 public class App {
+    public static void main(String[] args) throws IOException, SQLException {
 
-    public static void main(String[] args) throws Exception {
-        DatasetLoader datasetLoader = new DatasetLoader("C:/Users/Kotei Justice/Documents/Models/Datasets/Iris.csv");
-        DatasetSplit split = datasetLoader.split(80);
-        double[][] train = split.train;
-        double[][] test = split.test;
+        List<String> corpus = new ArrayList<>();
+        corpus.add("The quick brown fox jumps over the lazy dog.");
+        corpus.add("Lorem ipsum dolor sit amet consectetur adipiscing elit.");
 
-        // SVM Example
-        SVM svm = new SVM(train, test);
-        int[] svmPredictions = svm.predictAll();
-        for (int p : svmPredictions) {
-            System.out.println("SVM predicted label: " + p);
-        }
-        System.out.println("SVM Accuracy: " + svm.accuracy());
+        // simple labels
+        double[] labels = {0, 1};
 
+        // --- TF-IDF ---
+        TFIDF tfidf = new TFIDF();
+        List<Map<Integer, Double>> features = tfidf.fitTransform(corpus);
+
+
+        DatasetLoader dl = new DatasetLoader("C:/Users/Kotei Justice/Documents/Models/Datasets/Iris.csv", "Species");
+        DatasetSplit dataset = dl.split(6, "random");
+        // --- KNN ---
+        NaiveBayes nb = new NaiveBayes(dataset.train, dataset.test);
+        System.out.println(nb.accuracy());
     }
-
 }

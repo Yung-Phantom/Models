@@ -4,6 +4,9 @@ import java.util.*;
 
 public class AbstractNaiveBayes {
     public double[][] dataset;
+    public List<Map<Integer, Double>> sparseDataset;
+    private double[] labels;
+    private boolean sparse;
     public int numFeatures;
     public String method;
     public double alpha;
@@ -17,46 +20,73 @@ public class AbstractNaiveBayes {
     public Map<Integer, double[]> means = new HashMap<>();
     public Map<Integer, double[]> variances = new HashMap<>();
 
-    public Map<Integer, double[]> multinomialFeatureCounts = new HashMap<>();
-    public Map<Integer, Double> multinomialTotalFeatureCount = new HashMap<>();
+    private final Map<Integer, double[]> featureCounts = new HashMap<>();
+    private final Map<Integer, Double> totalFeatureCounts = new HashMap<>();
 
-    public Map<Integer, double[]> bernoulliFeatureCounts = new HashMap<>();
-
-    public AbstractNaiveBayes(double[][] dataset, String method) {
-        this(dataset, method, 1.0);
-    }
-
-    public AbstractNaiveBayes(double[][] dataset, String method, double alpha) {
-        this.dataset = dataset;
-        this.numFeatures = dataset[0].length - 1;
+    /*
+     * =========================
+     * Dense constructor
+     * =========================
+     */
+    public AbstractNaiveBayes(double[][] X, double[] labels, String method, double alpha) {
+        this.dataset = X;
+        this.labels = labels;
         this.method = method.toLowerCase();
         this.alpha = alpha;
+        this.sparse = false;
+        this.numFeatures = X[0].length;
 
-        // compute class counts and prepare parameters
+        train();
+    }
+
+    /*
+     * =========================
+     * Sparse constructor
+     * =========================
+     */
+    public AbstractNaiveBayes(List<Map<Integer, Double>> X, double[] labels,
+            String method, double alpha) {
+        this.sparseDataset = X;
+        this.labels = labels;
+        this.method = method.toLowerCase();
+        this.alpha = alpha;
+        this.sparse = true;
+
+        this.numFeatures = inferFeatureCount(X);
+        train();
+    }
+
+    private void train() {
         computeClassCounts();
         cacheClassesAndPriors();
-        switch (this.method) {
+
+        switch (method) {
             case "gaussian":
             case "g":
-                computeGaussianParameters();
+                if (sparse)
+                    throw new IllegalArgumentException("Gaussian NB not supported for sparse data.");
+                trainGaussian();
                 break;
-            case "m":
+
             case "multinomial":
-                computeMultinomialParameters();
+            case "m":
+                trainMultinomial();
                 break;
-            case "b":
+
             case "bernoulli":
-                computeBernoulliParameters();
+            case "b":
+                trainBernoulli();
                 break;
+
             default:
-                System.out.println("Method not supported: " + method);
+                throw new IllegalArgumentException("Unsupported Naive Bayes method: " + method);
         }
     }
 
     public void computeClassCounts() {
-        for (double[] row : dataset) {
-            int label = (int) row[numFeatures];
-            classCounts.put(label, classCounts.getOrDefault(label, 0) + 1);
+        for (double label : labels) {
+            int c = (int) label;
+            classCounts.put(c, classCounts.getOrDefault(c, 0) + 1);
             totalSamples++;
         }
     }
@@ -67,174 +97,238 @@ public class AbstractNaiveBayes {
         logPriors = new double[k];
 
         int i = 0;
-        for (Map.Entry<Integer, Integer> e : classCounts.entrySet()) {
+        for (var e : classCounts.entrySet()) {
             classes[i] = e.getKey();
             logPriors[i] = Math.log((double) e.getValue() / totalSamples);
             i++;
         }
     }
 
-    public void computeGaussianParameters() {
+    private void trainGaussian() {
         Map<Integer, double[]> sums = new HashMap<>();
         Map<Integer, double[]> sqSums = new HashMap<>();
 
-        for (int label : classes) {
-            sums.put(label, new double[numFeatures]);
-            sqSums.put(label, new double[numFeatures]);
+        for (int c : classes) {
+            sums.put(c, new double[numFeatures]);
+            sqSums.put(c, new double[numFeatures]);
         }
 
-        for (double[] row : dataset) {
-            int label = (int) row[numFeatures];
-            double[] s = sums.get(label);
-            double[] ss = sqSums.get(label);
+        for (int i = 0; i < dataset.length; i++) {
+            int c = (int) labels[i];
             for (int j = 0; j < numFeatures; j++) {
-                s[j] += row[j];
-                ss[j] += row[j] * row[j];
+                sums.get(c)[j] += dataset[i][j];
+                sqSums.get(c)[j] += dataset[i][j] * dataset[i][j];
             }
         }
 
-        for (int label : classes) {
-            int n = classCounts.get(label);
+        for (int c : classes) {
+            int n = classCounts.get(c);
             double[] mean = new double[numFeatures];
-            double[] variance = new double[numFeatures];
-            double[] s = sums.get(label);
-            double[] ss = sqSums.get(label);
+            double[] var = new double[numFeatures];
 
             for (int j = 0; j < numFeatures; j++) {
-                mean[j] = s[j] / n;
-                variance[j] = (ss[j] / n) - mean[j] * mean[j];
-                if (variance[j] < 1e-9)
-                    variance[j] = 1e-9;
+                mean[j] = sums.get(c)[j] / n;
+                var[j] = sqSums.get(c)[j] / n - mean[j] * mean[j];
+                if (var[j] < 1e-9)
+                    var[j] = 1e-9;
             }
-            means.put(label, mean);
-            variances.put(label, variance);
-        }
-
-    }
-
-    public void computeMultinomialParameters() {
-        for (int label : classes) {
-            multinomialFeatureCounts.put(label, new double[numFeatures]);
-            multinomialTotalFeatureCount.put(label, 0.0);
-        }
-
-        for (double[] row : dataset) {
-            int label = (int) row[numFeatures];
-            double[] counts = multinomialFeatureCounts.get(label);
-            double total = multinomialTotalFeatureCount.get(label);
-            for (int j = 0; j < numFeatures; j++) {
-                counts[j] += row[j];
-                total += row[j];
-            }
-            multinomialTotalFeatureCount.put(label, total);
+            means.put(c, mean);
+            variances.put(c, var);
         }
     }
 
-    public void computeBernoulliParameters() {
-        for (int label : classCounts.keySet()) {
-            bernoulliFeatureCounts.put(label, new double[numFeatures]);
+    private void trainMultinomial() {
+        for (int c : classes) {
+            featureCounts.put(c, new double[numFeatures]);
+            totalFeatureCounts.put(c, 0.0);
         }
 
-        for (double[] row : dataset) {
-            int label = (int) row[numFeatures];
-            double[] counts = bernoulliFeatureCounts.get(label);
-            for (int j = 0; j < numFeatures; j++) {
-                if (row[j] != 0.0)
-                    counts[j] += 1.0;
+        if (!sparse) {
+            for (int i = 0; i < dataset.length; i++) {
+                int c = (int) labels[i];
+                for (int j = 0; j < numFeatures; j++) {
+                    featureCounts.get(c)[j] += dataset[i][j];
+                    totalFeatureCounts.put(c,
+                            totalFeatureCounts.get(c) + dataset[i][j]);
+                }
+            }
+        } else {
+            for (int i = 0; i < sparseDataset.size(); i++) {
+                int c = (int) labels[i];
+                for (var e : sparseDataset.get(i).entrySet()) {
+                    featureCounts.get(c)[e.getKey()] += e.getValue();
+                    totalFeatureCounts.put(c,
+                            totalFeatureCounts.get(c) + e.getValue());
+                }
             }
         }
     }
 
-    public Map<Integer, Double> computeLogProbabilities(double[] query) {
-        Map<Integer, Double> logProbs = new HashMap<>();
+    private void trainBernoulli() {
+        for (int c : classes) {
+            featureCounts.put(c, new double[numFeatures]);
+        }
+
+        if (!sparse) {
+            for (int i = 0; i < dataset.length; i++) {
+                int c = (int) labels[i];
+                for (int j = 0; j < numFeatures; j++) {
+                    if (dataset[i][j] != 0.0)
+                        featureCounts.get(c)[j]++;
+                }
+            }
+        } else {
+            for (int i = 0; i < sparseDataset.size(); i++) {
+                int c = (int) labels[i];
+                for (int j : sparseDataset.get(i).keySet()) {
+                    featureCounts.get(c)[j]++;
+                }
+            }
+        }
+    }
+
+    public Map<Integer, Double> computeProbabilities(double[] x) {
+        if (sparse)
+            throw new IllegalStateException("Dense query in sparse model.");
+        return softmax(logPosteriorsDense(x));
+    }
+
+    public Map<Integer, Double> computeProbabilities(Map<Integer, Double> x) {
+        if (!sparse)
+            throw new IllegalStateException("Sparse query in dense model.");
+        return softmax(logPosteriorsSparse(x));
+    }
+
+    private Map<Integer, Double> logPosteriorsDense(double[] x) {
+        Map<Integer, Double> out = new HashMap<>();
 
         for (int i = 0; i < classes.length; i++) {
-            int label = classes[i];
+            int c = classes[i];
             double logLike;
 
             switch (method) {
                 case "gaussian":
                 case "g":
-                    logLike = gaussianLogLikelihood(label, query);
+                    logLike = gaussianLogLike(c, x);
                     break;
                 case "multinomial":
                 case "m":
-                    logLike = multinomialLogLikelihood(label, query);
-                    break;
-                case "bernoulli":
-                case "b":
-                    logLike = bernoulliLogLikelihood(label, query);
+                    logLike = multinomialLogLike(c, x);
                     break;
                 default:
-                    throw new IllegalStateException();
+                    logLike = bernoulliLogLikeDense(c, x);
             }
 
-            logProbs.put(label, logPriors[i] + logLike);
+            out.put(c, logPriors[i] + logLike);
         }
-
-        return logProbs;
+        return out;
     }
 
-    public Map<Integer, Double> computeProbabilities(double[] query) {
-        Map<Integer, Double> logProbs = computeLogProbabilities(query);
+    private Map<Integer, Double> logPosteriorsSparse(Map<Integer, Double> x) {
+        Map<Integer, Double> out = new HashMap<>();
 
-        // compute log-sum-exp
-        double lse = logSumExp(logProbs.values());
-
-        Map<Integer, Double> probs = new HashMap<>();
-        for (Map.Entry<Integer, Double> e : logProbs.entrySet()) {
-            probs.put(e.getKey(), Math.exp(e.getValue() - lse));
+        for (int i = 0; i < classes.length; i++) {
+            int c = classes[i];
+            double logLike = multinomialLogLikeSparse(c, x);
+            out.put(c, logPriors[i] + logLike);
         }
-        return probs;
+        return out;
     }
 
-    public double logSumExp(Collection<Double> values) {
-        double max = Double.NEGATIVE_INFINITY;
-        for (double v : values)
-            if (v > max)
-                max = v;
-        if (max == Double.NEGATIVE_INFINITY)
-            return Double.NEGATIVE_INFINITY;
-        double sum = 0.0;
-        for (double v : values)
+    private double gaussianLogLike(int c, double[] x) {
+        double sum = 0;
+        double[] mean = means.get(c);
+        double[] var = variances.get(c);
+
+        for (int j = 0; j < numFeatures; j++) {
+            double d = x[j] - mean[j];
+            sum += -0.5 * Math.log(2 * Math.PI * var[j])
+                    - (d * d) / (2 * var[j]);
+        }
+        return sum;
+    }
+
+    private double multinomialLogLike(int c, double[] x) {
+        double[] counts = featureCounts.get(c);
+        double total = totalFeatureCounts.get(c);
+        double V = numFeatures;
+
+        double sum = 0;
+        for (int j = 0; j < numFeatures; j++) {
+            if (x[j] > 0)
+                sum += x[j] * Math.log((counts[j] + alpha) / (total + alpha * V));
+        }
+        return sum;
+    }
+
+    private double multinomialLogLikeSparse(int c, Map<Integer, Double> x) {
+        double[] counts = featureCounts.get(c);
+        double total = totalFeatureCounts.get(c);
+        double V = numFeatures;
+
+        double sum = 0;
+        for (var e : x.entrySet()) {
+            sum += e.getValue()
+                    * Math.log((counts[e.getKey()] + alpha) / (total + alpha * V));
+        }
+        return sum;
+    }
+
+    private double bernoulliLogLikeDense(int c, double[] x) {
+        double[] counts = featureCounts.get(c);
+        int Nc = classCounts.get(c);
+        double sum = 0;
+
+        for (int j = 0; j < numFeatures; j++) {
+            double p = (counts[j] + alpha) / (Nc + 2 * alpha);
+            p = Math.max(p, 1e-12);
+            sum += (x[j] != 0 ? Math.log(p) : Math.log(1 - p));
+        }
+        return sum;
+    }
+
+    private double bernoulliLogLikeSparse(int c, Map<Integer, Double> x) {
+        double[] counts = featureCounts.get(c);
+        int Nc = classCounts.get(c);
+        double sum = 0;
+
+        for (var entry : x.entrySet()) {
+            int feature = entry.getKey();
+            double p = (counts[feature] + alpha) / (Nc + 2 * alpha);
+            p = Math.max(p, 1e-12);
+            sum += Math.log(p); // feature is present
+        }
+
+        // For features not present in the sparse data, use (1 - p) (feature is absent)
+        for (int j = 0; j < numFeatures; j++) {
+            if (!x.containsKey(j)) {
+                double p = (counts[j] + alpha) / (Nc + 2 * alpha);
+                p = Math.max(p, 1e-12);
+                sum += Math.log(1 - p); // feature is absent
+            }
+        }
+        return sum;
+    }
+
+    private Map<Integer, Double> softmax(Map<Integer, Double> logVals) {
+        double max = Collections.max(logVals.values());
+        double sum = 0;
+
+        for (double v : logVals.values())
             sum += Math.exp(v - max);
-        return max + Math.log(sum);
+
+        Map<Integer, Double> out = new HashMap<>();
+        for (var e : logVals.entrySet())
+            out.put(e.getKey(), Math.exp(e.getValue() - max) / sum);
+
+        return out;
     }
 
-    public double gaussianLogLikelihood(int label, double[] query) {
-        double[] mean = means.get(label);
-        double[] variance = variances.get(label);
-        double sum = 0.0;
-        for (int j = 0; j < numFeatures; j++) {
-            double d = query[j] - mean[j];
-            sum += -0.5 * Math.log(2 * Math.PI * variance[j]) - (d * d) / (2 * variance[j]);
-        }
-        return sum;
-    }
-
-    public double multinomialLogLikelihood(int label, double[] query) {
-        double[] counts = multinomialFeatureCounts.get(label);
-        double totalCount = multinomialTotalFeatureCount.get(label);
-        double V = numFeatures; // number of features
-        double sum = 0.0;
-        for (int j = 0; j < numFeatures; j++) {
-            if (query[j] > 0)
-                sum += query[j] * Math.log((counts[j] + alpha) / (totalCount + alpha * V));
-        }
-        return sum;
-    }
-
-    public double bernoulliLogLikelihood(int label, double[] query) {
-        double[] counts = bernoulliFeatureCounts.get(label);
-        int Nc = classCounts.get(label);
-        double sum = 0.0;
-
-        for (int j = 0; j < numFeatures; j++) {
-            double x = query[j] != 0.0 ? 1.0 : 0.0;
-            double p1 = (counts[j] + alpha) / (Nc + 2.0 * alpha);
-            p1 = Math.max(p1, 1e-12);
-            sum += x * Math.log(p1) + (1.0 - x) * Math.log(1.0 - p1);
-        }
-        return sum;
+    private int inferFeatureCount(List<Map<Integer, Double>> X) {
+        int max = 0;
+        for (var m : X)
+            for (int k : m.keySet())
+                max = Math.max(max, k + 1);
+        return max;
     }
 }

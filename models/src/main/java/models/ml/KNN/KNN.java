@@ -2,218 +2,217 @@ package models.ml.KNN;
 
 import java.util.*;
 
-/**
- * Optimized K-Nearest Neighbours algorithm.
- * 
- * @author Kotei Justice
- * @version 1.3
- * 
- *          This class provides an optimized K-Nearest Neighbours algorithm. It
- *          uses a priority queue to keep track of the top K nearest neighbours.
- *          The algorithm is optimized for speed and memory efficiency.
- */
 public class KNN {
 
-    private final double[][] dataset;
-    private final double[][] points;
-    private final AbstractKNN knn;
+    private double[][] dataset;
+    private double[][] points;
+    private List<Map<Integer, Double>> sparseDataset;
+    private List<Map<Integer, Double>> sparsePoints;
+    private double[] trainingLabels;
+    private double[] testLabels;
+    private AbstractKNN knn;
     private int k;
+    private boolean sparse;
+    private String method;
 
-    /**
-     * Constructor for the KNN algorithm with a specified method.
-     * Uses the provided value of K, or computes the optimal value if k == 0.
-     *
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
-     *                "minkowski").
-     * @param k       The initial value of K .
-     */
-    public KNN(double[][] dataset, double[][] points, String method, int k) {
-        this.dataset = dataset;
-        this.points = points;
-        this.k = k;
-        if (k == 0)
-            this.k=optimal();
-        this.knn = new AbstractKNN(dataset, method);
+    // Dense master constructor
+    private KNN(double[][] dataset, double[][] points, double[] trainingLabels, double[] testLabels,
+            String method, int k, Integer p) {
+        if (dataset == null)
+            throw new IllegalArgumentException("Dense dataset cannot be null.");
+
+        this.sparse = false;
+        this.dataset = extractFeatures(dataset);
+        this.points = extractFeatures(points);
+        this.trainingLabels = trainingLabels != null ? trainingLabels : extractLabels(dataset);
+        this.testLabels = testLabels != null ? testLabels : extractLabels(points);
+        this.method = method != null ? method : "euclidean";
+
+        this.knn = (p != null) ? new AbstractKNN(this.dataset, this.method, p)
+                : new AbstractKNN(this.dataset, this.method);
+
+        this.k = (k > 0) ? k : (this.testLabels != null ? optimalDense() : 1);
     }
 
-    /**
-     * Constructor for the KNN algorithm with Euclidean distance.
-     *
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     * @param k       The value of K to use.
-     */
+    // Sparse master constructor
+    public KNN(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
+            double[] trainingLabels, double[] testLabels, String method, int k, Integer p) {
+        if (sparseDataset == null)
+            throw new IllegalArgumentException("Sparse dataset cannot be null.");
+
+        this.sparse = true;
+        this.sparseDataset = sparseDataset;
+        this.sparsePoints = sparsePoints;
+        this.trainingLabels = trainingLabels;
+        this.testLabels = testLabels;
+        this.method = method != null ? method : "euclidean";
+
+        this.knn = (p != null) ? new AbstractKNN(this.sparseDataset, this.method, p)
+                : new AbstractKNN(this.sparseDataset, this.method);
+
+        this.k = (k > 0) ? k : (this.testLabels != null ? optimalSparse() : 1);
+    }
+
     public KNN(double[][] dataset, double[][] points, int k) {
-        this(dataset, points, "euclidean", k);
+        this(dataset, points, null, null, "euclidean", k, null);
     }
 
-    /**
-     * Constructor for the KNN algorithm with a specified method and Minkowski
-     * parameter p.
-     * Uses the provided value of K, or computes the optimal value if k == 0.
-     * 
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
-     *                "minkowski").
-     * @param k       The value of K to use.
-     * @param p       The Minkowski distance parameter.
-     */
     public KNN(double[][] dataset, double[][] points, String method, int k, int p) {
-        this.dataset = dataset;
-        this.points = points;
+        this(dataset, points, null, null, method, k, p);
+    }
+
+    public KNN(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
+            double[] trainingLabels, double[] testLabels, int k) {
+        this(sparseDataset, sparsePoints, trainingLabels, testLabels, "euclidean", k, null);
+    }
+
+    public void fit(double[][] dataset, double[] labels, String method) {
+        this.dataset = extractFeatures(dataset);
+        this.method = method;
+        this.trainingLabels = labels != null ? labels : extractLabels(dataset);
+        this.sparse = false;
+        this.knn = new AbstractKNN(this.dataset, method);
+    }
+
+    public void fit(double[][] dataset, double[] labels) {
+        fit(dataset, labels, method);
+    }
+
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels, String method) {
+        this.sparseDataset = sparseDataset;
+        this.trainingLabels = labels;
+        this.method = method;
+        this.sparse = true;
+        this.knn = new AbstractKNN(this.sparseDataset, method);
+    }
+
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels) {
+        fit(sparseDataset, labels, method);
+    }
+
+    public void setK(int k) {
+        if (k <= 0)
+            throw new IllegalArgumentException("k must be > 0");
         this.k = k;
-        if (k == 0)
-            this.k=optimal();
-        this.knn = new AbstractKNN(dataset, method, p);
     }
 
-    /**
-     * Constructor for the KNN algorithm with Minkowski distance and parameter p.
-     *
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     * @param k       The value of K to use.
-     * @param p       The Minkowski distance parameter.
-     */
-    public KNN(double[][] dataset, double[][] points, int k, int p) {
-        this(dataset, points, "minkowski", k, p);
+    public void setDistanceMethod(String method) {
+        this.method = method;
+        if (!sparse) {
+            this.knn = new AbstractKNN(dataset, method);
+        } else {
+            this.knn = new AbstractKNN(sparseDataset, method);
+        }
     }
 
-    /**
-     * Constructor for the KNN algorithm with a specified method.
-     * Automatically determines the optimal value of K.
-     * 
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     * @param method  The distance method to use (e.g., "euclidean", "manhattan",
-     *                "minkowski").
-     */
-    public KNN(double[][] dataset, double[][] points, String method) {
-        this.dataset = dataset;
-        this.points = points;
-        this.knn = new AbstractKNN(dataset, method);
-        this.k = optimal();
+    public void setPoints(double[][] points) {
+        if (points != null && testLabels != null && points.length != testLabels.length)
+            throw new IllegalArgumentException("Points length must match test labels length.");
+        this.points = extractFeatures(points);
+        this.testLabels = extractLabels(points);
     }
 
-    /**
-     * Constructor for the KNN algorithm with Euclidean distance.
-     * Automatically determines the optimal value of K.
-     * 
-     * @param dataset The dataset to use.
-     * @param points  The points to query.
-     */
-    public KNN(double[][] dataset, double[][] points) {
-        this(dataset, points, "euclidean");
+    public void setPoints(List<Map<Integer, Double>> sparsePoints, double[] testLabels) {
+        if (sparsePoints != null && testLabels != null && sparsePoints.size() != testLabels.length)
+            throw new IllegalArgumentException("Sparse points size must match test labels length.");
+    
+        this.sparsePoints = sparsePoints;
+        this.testLabels = testLabels;
     }
 
-    /**
-     * Get the K nearest neighbours of a given query point.
-     * 
-     * @param queryIndex The index of the query point.
-     * @return A map containing the K nearest neighbours and their distances.
-     */
+    public void refreshKNN() {
+        if (!sparse && dataset != null) {
+            this.knn = new AbstractKNN(dataset, method);
+        } else if (sparse && sparseDataset != null) {
+            this.knn = new AbstractKNN(sparseDataset, method);
+        }
+    }
+
+    public void setTrainingLabels(double[] labels) {
+        this.trainingLabels = labels;
+    }
+
+    public void setTestLabels(double[] labels) {
+        this.testLabels = labels;
+    }
+
+    public void recalcOptimalK() {
+        if (sparse) {
+            this.k = optimalSparse();
+        } else {
+            this.k = optimalDense();
+        }
+    }
+
     public LinkedHashMap<Integer, Double> getNeighboursWithDistance(int queryIndex) {
-        double[] query = points[queryIndex];
+        int n = sparse ? sparseDataset.size() : dataset.length;
+        Map<Integer, Double> distances = new HashMap<>();
 
-        PriorityQueue<Map.Entry<Integer, Double>> pq = new PriorityQueue<>(
-                Comparator.comparingDouble(Map.Entry<Integer, Double>::getValue).reversed());
-
-        for (int i = 0; i < dataset.length; i++) {
-            double d = knn.distance(query, dataset[i]);
-
-            if (pq.size() < k) {
-                pq.offer(new AbstractMap.SimpleEntry<>(i, d));
-            } else if (d < pq.peek().getValue()) {
-                pq.poll();
-                pq.offer(new AbstractMap.SimpleEntry<>(i, d));
-            }
+        for (int i = 0; i < n; i++) {
+            double d = sparse ? knn.distance(sparsePoints.get(queryIndex), sparseDataset.get(i))
+                    : knn.distance(points[queryIndex], dataset[i]);
+            distances.put(i, d);
         }
 
-        List<Map.Entry<Integer, Double>> ordered = new ArrayList<>(pq);
-        ordered.sort(Comparator.comparingDouble(Map.Entry::getValue));
-
-        LinkedHashMap<Integer, Double> neighbours = new LinkedHashMap<>();
-        for (Map.Entry<Integer, Double> e : ordered) {
-            neighbours.put(e.getKey(), e.getValue());
-        }
-        return neighbours;
+        return distances.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .limit(k)
+                .collect(LinkedHashMap::new,
+                        (m, e) -> m.put(e.getKey(), e.getValue()),
+                        LinkedHashMap::putAll);
     }
 
-    /**
-     * Predict the label of a given query point using the majority vote of its K
-     * nearest neighbours.
-     * 
-     * @param queryIndex The index of the query point.
-     * @return The predicted label.
-     */
     public int majority(int queryIndex) {
         Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
-
-        int predicted = -1, maxCount = -1;
-        HashMap<Integer, Integer> labelCounts = new HashMap<>();
+        Map<Integer, Integer> counts = new HashMap<>();
 
         for (int idx : neighbours.keySet()) {
-            int label = (int) dataset[idx][dataset[idx].length - 1];
-            int count = labelCounts.getOrDefault(label, 0) + 1;
-            labelCounts.put(label, count);
+            int label = (int) trainingLabels[idx];
 
-            if (count > maxCount) {
-                maxCount = count;
-                predicted = label;
-            }
+            counts.put(label, counts.getOrDefault(label, 0) + 1);
         }
-        return predicted;
+
+        return counts.entrySet()
+                .stream()
+                .max(Map.Entry.comparingByValue())
+                .get()
+                .getKey();
     }
 
-    /**
-     * Predict the probability distribution of a given query point using the
-     * majority vote of its K nearest neighbours.
-     * 
-     * @param queryIndex The index of the query point.
-     * @return A map containing the predicted probability distribution.
-     */
     public Map<Integer, Double> probability(int queryIndex) {
         Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
+        Map<Integer, Integer> counts = new HashMap<>();
 
-        HashMap<Integer, Integer> counts = new HashMap<>();
         for (int idx : neighbours.keySet()) {
-            int label = (int) dataset[idx][dataset[idx].length - 1];
+            int label = (int) trainingLabels[idx];
             counts.put(label, counts.getOrDefault(label, 0) + 1);
         }
 
         Map<Integer, Double> probs = new HashMap<>();
-        for (Map.Entry<Integer, Integer> e : counts.entrySet()) {
-            probs.put(e.getKey(), (double) e.getValue() / k);
+        for (var e : counts.entrySet()) {
+            probs.put(e.getKey(), e.getValue() / (double) k);
         }
         return probs;
     }
 
-    /**
-     * Compute the accuracy of the algorithm using the leave-one-out
-     * cross-validation method.
-     * 
-     * @return The accuracy of the algorithm.
-     */
     public double accuracy() {
+        if (testLabels == null) {
+            throw new IllegalStateException("No labels for query/test points available.");
+        }
+
         int correct = 0;
-        for (int i = 0; i < points.length; i++) {
-            if (majority(i) == (int) points[i][points[i].length - 1]) {
+        int n = testLabels.length;
+
+        for (int i = 0; i < n; i++) {
+            if (majority(i) == (int) testLabels[i]) {
                 correct++;
             }
         }
-        return (double) correct / points.length;
+
+        return (double) correct / n;
     }
 
-    /**
-     * Compute the optimal value of K using leave-one-out cross-validation.
-     * Searches values of K from 1 up to sqrt(dataset length).
-     *
-     * @return The optimal value of K.
-     */
-    public int optimal() {
+    public int optimalDense() {
         double best = 0.0;
         int bestK = 1;
 
@@ -229,31 +228,62 @@ public class KNN {
         return bestK;
     }
 
-    /**
-     * Predict the labels of all query points using the majority vote of their K
-     * nearest neighbours.
-     * 
-     * @return The predicted labels.
-     */
+    private int optimalSparse() {
+        double best = 0;
+        int bestK = 1;
+
+        int maxK = (int) Math.sqrt(sparseDataset.size());
+        for (int i = 1; i <= maxK; i++) {
+            this.k = i;
+            double acc = accuracy();
+            if (acc > best) {
+                best = acc;
+                bestK = i;
+            }
+        }
+        return bestK;
+    }
+
     public int[] predictAllMajority() {
-        int[] out = new int[points.length];
-        for (int i = 0; i < points.length; i++) {
+        int n = sparse ? sparsePoints.size() : points.length;
+        int[] out = new int[n];
+        for (int i = 0; i < n; i++) {
             out[i] = majority(i);
         }
         return out;
     }
 
-    /**
-     * Predict the probability distributions of all query points using the majority
-     * vote of their K nearest neighbours.
-     * 
-     * @return A list containing the predicted probability distributions.
-     */
     public List<Map<Integer, Double>> predictAllProbability() {
+        int n = sparse ? sparsePoints.size() : points.length;
         List<Map<Integer, Double>> list = new ArrayList<>();
-        for (int i = 0; i < points.length; i++) {
+        for (int i = 0; i < n; i++) {
             list.add(probability(i));
         }
         return list;
     }
+
+    private double[][] extractFeatures(double[][] dataset) {
+        if (dataset[0].length < 2)
+            throw new IllegalArgumentException("Dataset must have at least one feature and one label column.");
+        
+        double[][] datasetIn = new double[dataset.length][dataset[0].length - 1];
+        for (int i = 0; i < dataset.length; i++) {
+            System.arraycopy(dataset[i], 0, datasetIn[i], 0, dataset[0].length - 1);
+        }
+        return datasetIn;
+    }
+
+    private double[] extractLabels(double[][] dataset) {
+        if (dataset[0].length < 2)
+            throw new IllegalArgumentException("Dataset must have at least one feature and one label column.");
+        
+        double[] labels = new double[dataset.length];
+        for (int i = 0; i < dataset.length; i++) {
+            labels[i] = dataset[i][dataset[0].length - 1];
+            if (labels[i] != (int) labels[i])
+                throw new IllegalArgumentException("Labels must be integers");
+        }
+        return labels;
+    }
+
 }
