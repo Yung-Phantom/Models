@@ -2,83 +2,87 @@ package models.ml.KNN;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * Abstract class for K-Nearest Neighbours algorithm.
- * 
- * @author Kotei Justice
- * @version 1.2
- */
 public class AbstractKNN {
     public double[][] dataset;
     public List<Map<Integer, Double>> sparseDataset;
-    public int numSamples;
-    public int numFeatures;
-    public double[] weights;
-    public double[][] distances;
-    public String method;
-    public int p;
     private boolean sparse = false;
 
-    /**
-     * Constructor.
-     * 
-     * @param dataset The dataset to use.
-     * @param method  The method to use, either "euclidean", "manhattan",
-     *                "minkowski", or "cosine".
-     */
-    public AbstractKNN(double[][] dataset, String method) {
-        this(dataset, method, 2);
-    }
+    public String method;
+    public int p;
 
-    /**
-     * Constructor.
-     * 
-     * @param dataset The dataset to use.
-     * @param method  The method to use, either "euclidean", "manhattan",
-     *                "minkowski", or "cosine".
-     * @param p       The power to use for Minkowski distance.
-     */
+    public int numSamples;
+    public int numFeatures;
+
+    // public double[] weights;
+    public double[][] distances;
+
     public AbstractKNN(List<Map<Integer, Double>> sparseDataset, String method, int p) {
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
+
+        if (sparseDataset == null || sparseDataset.isEmpty())
+            throw new IllegalArgumentException("Empty sparse dataset");
+
+        for (Map<Integer, Double> row : sparseDataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Sparse dataset contains null row");
+            for (double val : row.values()) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Dataset contains NaN or Infinity");
+                }
+            }
+        }
+
         this.sparseDataset = sparseDataset;
         this.numSamples = sparseDataset.size();
-        this.method = method.toLowerCase();
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("euclidean", "manhattan", "minkowski", "cosine").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
         this.p = p;
         this.sparse = true;
     }
 
-    public AbstractKNN(List<Map<Integer, Double>> sparseDataset, String method) {
-        this(sparseDataset, method, 2);
-    }
-
-    /**
-     * Constructor.
-     * 
-     * @param dataset The dataset to use.
-     * @param method  The method to use, either "euclidean", "manhattan",
-     *                "minkowski", or "cosine".
-     * @param p       The power to use for Minkowski distance.
-     */
     public AbstractKNN(double[][] dataset, String method, int p) {
+        if (dataset == null || dataset.length == 0)
+            throw new IllegalArgumentException("Empty dataset");
+
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
+
         this.dataset = dataset;
+
         this.numFeatures = dataset[0].length;
+        for (double[] row : dataset) {
+            if (row.length != numFeatures)
+                throw new IllegalArgumentException("Inconsistent row length");
+            for (double val : row) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Dataset contains NaN or Infinity");
+                }
+            }
+        }
+
         this.numSamples = dataset.length;
-        this.method = method.toLowerCase();
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("euclidean", "manhattan", "minkowski", "cosine").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
         this.p = p;
         this.sparse = false;
     }
 
-    /**
-     * Compute the distance between two points.
-     * 
-     * @param x The first point.
-     * @param y The second point.
-     * @return The distance between the two points.
-     */
     public double distance(double[] x, double[] y) {
         if (sparse) {
             throw new IllegalStateException("Dense distance called in sparse mode");
         }
+
+        if (x.length != numFeatures || y.length != numFeatures)
+            throw new IllegalArgumentException("Vector dimension mismatch");
 
         switch (method) {
             case "euclidean":
@@ -94,11 +98,12 @@ public class AbstractKNN {
         }
     }
 
-    public double distance(Map<Integer, ? extends Number> x,
-            Map<Integer, ? extends Number> y) {
+    public double distance(Map<Integer, ? extends Number> x, Map<Integer, ? extends Number> y) {
         if (!sparse) {
             throw new IllegalStateException("Sparse distance called in dense mode");
         }
+        if (x == null || y == null)
+            throw new IllegalArgumentException("Vectors cannot be null");
 
         switch (method) {
             case "euclidean":
@@ -114,14 +119,8 @@ public class AbstractKNN {
         }
     }
 
-    /**
-     * Compute the Euclidean distance between two points.
-     * 
-     * @param x The first point.
-     * @param y The second point.
-     * @return The Euclidean distance between the two points.
-     */
     private double euclidean(double[] x, double[] y) {
+
         double sum = 0.0;
         for (int i = 0; i < numFeatures; i++) {
             double diff = x[i] - y[i];
@@ -130,14 +129,8 @@ public class AbstractKNN {
         return Math.sqrt(sum);
     }
 
-    /**
-     * Compute the Manhattan distance between two points.
-     * 
-     * @param x The first point.
-     * @param y The second point.
-     * @return The Manhattan distance between the two points.
-     */
     private double manhattan(double[] x, double[] y) {
+
         double sum = 0.0;
         for (int i = 0; i < numFeatures; i++) {
             sum += Math.abs(x[i] - y[i]);
@@ -145,15 +138,10 @@ public class AbstractKNN {
         return sum;
     }
 
-    /**
-     * Compute the Minkowski distance between two points.
-     * 
-     * @param x The first point.
-     * @param y The second point.
-     * @param p The power to use.
-     * @return The Minkowski distance between the two points.
-     */
     private double minkowski(double[] x, double[] y, int p) {
+        if (p <= 0)
+            throw new IllegalArgumentException("p must be > 0");
+
         double sum = 0.0;
         for (int i = 0; i < numFeatures; i++) {
             sum += Math.pow(Math.abs(x[i] - y[i]), p);
@@ -161,25 +149,26 @@ public class AbstractKNN {
         return Math.pow(sum, 1.0 / p);
     }
 
-    /**
-     * Compute the cosine distance between two points.
-     * 
-     * @param x The first point.
-     * @param y The second point.
-     * @return The cosine distance between the two points.
-     */
     private double cosine(double[] x, double[] y) {
+
         double dot = 0.0, normX = 0.0, normY = 0.0;
         for (int i = 0; i < numFeatures; i++) {
             dot += x[i] * y[i];
             normX += x[i] * x[i];
             normY += y[i] * y[i];
         }
-        return 1.0 - (dot / (Math.sqrt(normX) * Math.sqrt(normY)));
+
+        if (normX == 0.0 && normY == 0.0)
+            return 0.0;
+
+        if (normX == 0.0 || normY == 0.0)
+            return 1.0;
+
+        double denom = Math.sqrt(normX) * Math.sqrt(normY);
+        return 1.0 - (dot / denom);
     }
 
-    private double euclideanSparse(Map<Integer, ? extends Number> x,
-            Map<Integer, ? extends Number> y) {
+    private double euclideanSparse(Map<Integer, ? extends Number> x, Map<Integer, ? extends Number> y) {
         double sum = 0.0;
 
         // iterate smaller map
@@ -230,9 +219,10 @@ public class AbstractKNN {
         return sum;
     }
 
-    private double minkowskiSparse(Map<Integer, ? extends Number> x,
-            Map<Integer, ? extends Number> y,
-            int p) {
+    private double minkowskiSparse(Map<Integer, ? extends Number> x, Map<Integer, ? extends Number> y, int p) {
+        if (p <= 0)
+            throw new IllegalArgumentException("p must be > 0");
+
         double sum = 0.0;
 
         Map<Integer, ? extends Number> a = x.size() < y.size() ? x : y;
@@ -267,26 +257,40 @@ public class AbstractKNN {
             dot += xv * yv;
             normX += xv * xv;
         }
-
         for (var e : y.entrySet()) {
             double v = e.getValue().doubleValue();
             normY += v * v;
         }
 
-        return 1.0 - (dot / (Math.sqrt(normX) * Math.sqrt(normY)));
+        if (normX == 0.0 && normY == 0.0)
+            return 0.0;
+
+        if (normX == 0.0 || normY == 0.0)
+            return 1.0;
+
+        double denom = Math.sqrt(normX) * Math.sqrt(normY);
+
+        return 1.0 - (dot / denom);
     }
 
-    /**
-     * Compute the distances between all points in the query set and all points in
-     * the dataset.
-     * 
-     * @param query The query set.
-     * @return The matrix of distances, where distances[i][j] is the distance
-     *         between the i-th query point and the j-th dataset point.
-     */
     public double[][] getDistances(double[][] query) {
         if (sparse)
             throw new IllegalStateException("Dense getDistances called in sparse mode");
+
+        if (query == null) {
+            throw new NullPointerException("Query cannot be null");
+        }
+        if (query.length == 0) {
+            throw new IllegalArgumentException("Query cannot be empty");
+        }
+        for (double[] q : query) {
+            for (double val : q) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Query contains NaN or Infinity");
+                }
+            }
+        }
+
         distances = new double[query.length][numSamples];
         for (int np = 0; np < query.length; np++) {
             for (int i = 0; i < numSamples; i++) {
@@ -296,15 +300,24 @@ public class AbstractKNN {
         return distances;
     }
 
-    /**
-     * Compute distances between sparse query vectors and sparse dataset vectors.
-     *
-     * @param query Sparse query set
-     * @return Distance matrix [query][dataset]
-     */
     public double[][] getDistances(List<Map<Integer, Double>> query) {
         if (!sparse)
             throw new IllegalStateException("Sparse getDistances called in dense mode");
+
+        if (query == null) {
+            throw new NullPointerException("Query cannot be null");
+        }
+        if (query.isEmpty()) {
+            throw new IllegalArgumentException("Query cannot be empty");
+        }
+
+        for (Map<Integer, Double> q : query) {
+            for (double val : q.values()) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Query contains NaN or Infinity");
+                }
+            }
+        }
 
         double[][] out = new double[query.size()][numSamples];
 

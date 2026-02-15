@@ -6,88 +6,112 @@ public class KNN {
 
     private double[][] dataset;
     private double[][] points;
+
     private List<Map<Integer, Double>> sparseDataset;
     private List<Map<Integer, Double>> sparsePoints;
+
+    private boolean sparse;
+
     private double[] trainingLabels;
     private double[] testLabels;
-    private AbstractKNN knn;
+
     private int k;
-    private boolean sparse;
+    private int p;
+
     private String method;
 
-    // Dense master constructor
-    private KNN(double[][] dataset, double[][] points, double[] trainingLabels, double[] testLabels,
-            String method, int k, Integer p) {
-        if (dataset == null)
-            throw new IllegalArgumentException("Dense dataset cannot be null.");
+    private AbstractKNN knn;
 
-        this.sparse = false;
-        this.dataset = extractFeatures(dataset);
-        this.points = extractFeatures(points);
-        this.trainingLabels = trainingLabels != null ? trainingLabels : extractLabels(dataset);
-        this.testLabels = testLabels != null ? testLabels : extractLabels(points);
-        this.method = method != null ? method : "euclidean";
-
-        this.knn = (p != null) ? new AbstractKNN(this.dataset, this.method, p)
-                : new AbstractKNN(this.dataset, this.method);
-
-        this.k = (k > 0) ? k : (this.testLabels != null ? optimalDense() : 1);
+    public KNN() {
     }
 
-    // Sparse master constructor
-    public KNN(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
-            double[] trainingLabels, double[] testLabels, String method, int k, Integer p) {
-        if (sparseDataset == null)
-            throw new IllegalArgumentException("Sparse dataset cannot be null.");
+    private KNN(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels, String method,
+            int k, int p) {
+        this.sparse = false;
+        if (dataset == null) {
+            throw new IllegalArgumentException("Dataset cannot be null.");
+        }
+        if (points == null) {
+            throw new IllegalArgumentException("Points cannot be null.");
+        }
+        if (dataset.length != trainingLabels.length) {
+            throw new IllegalArgumentException("Dataset length must match training labels length.");
+        }
+        if (points.length != testLabels.length) {
+            throw new IllegalArgumentException("Points length must match test labels length.");
+        }
+        this.dataset = dataset;
+        this.points = points;
+        this.trainingLabels = trainingLabels;
+        this.testLabels = testLabels;
 
+        this.method = method != null ? method : "euclidean";
+        this.p = p > 0 ? p : 2;
+
+        this.knn = new AbstractKNN(this.dataset, this.method, this.p);
+
+        this.k = k > 0 ? k : optimal();
+    }
+
+    public KNN(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> sparsePoints, double[] testLabels, String method, int k, Integer p) {
         this.sparse = true;
+        if (sparseDataset == null) {
+            throw new IllegalArgumentException("Sparse dataset cannot be null.");
+        }
+        if (sparsePoints == null) {
+            throw new IllegalArgumentException("Sparse points cannot be null.");
+        }
+        if (trainingLabels == null) {
+            throw new IllegalArgumentException("Training labels cannot be null.");
+        }
+        if (testLabels == null) {
+            throw new IllegalArgumentException("Test labels cannot be null.");
+        }
         this.sparseDataset = sparseDataset;
         this.sparsePoints = sparsePoints;
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
-        this.method = method != null ? method : "euclidean";
 
-        this.knn = (p != null) ? new AbstractKNN(this.sparseDataset, this.method, p)
-                : new AbstractKNN(this.sparseDataset, this.method);
+        this.method = method != null ? method : "cosine";
+        this.p = (p != null && p > 0) ? p : 2;
 
-        this.k = (k > 0) ? k : (this.testLabels != null ? optimalSparse() : 1);
+        this.knn = new AbstractKNN(this.sparseDataset, this.method, this.p);
+
+        this.k = (k > 0) ? k : optimal();
     }
 
-    public KNN(double[][] dataset, double[][] points, int k) {
-        this(dataset, points, null, null, "euclidean", k, null);
-    }
-
-    public KNN(double[][] dataset, double[][] points, String method, int k, int p) {
-        this(dataset, points, null, null, method, k, p);
+    public KNN(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels, int k) {
+        this(dataset, trainingLabels, points, testLabels, "euclidean", k, 2);
     }
 
     public KNN(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
             double[] trainingLabels, double[] testLabels, int k) {
-        this(sparseDataset, sparsePoints, trainingLabels, testLabels, "euclidean", k, null);
+        this(sparseDataset, trainingLabels, sparsePoints, testLabels, "cosine", k, 2);
     }
 
-    public void fit(double[][] dataset, double[] labels, String method) {
-        this.dataset = extractFeatures(dataset);
-        this.method = method;
-        this.trainingLabels = labels != null ? labels : extractLabels(dataset);
+    public void fit(double[][] dataset, double[] trainingLabels, String method) {
         this.sparse = false;
-        this.knn = new AbstractKNN(this.dataset, method);
-    }
-
-    public void fit(double[][] dataset, double[] labels) {
-        fit(dataset, labels, method);
-    }
-
-    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels, String method) {
-        this.sparseDataset = sparseDataset;
-        this.trainingLabels = labels;
+        this.dataset = dataset;
+        this.trainingLabels = trainingLabels;
         this.method = method;
-        this.sparse = true;
-        this.knn = new AbstractKNN(this.sparseDataset, method);
+        this.knn = new AbstractKNN(this.dataset, this.method, this.p);
     }
 
-    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels) {
-        fit(sparseDataset, labels, method);
+    public void fit(double[][] dataset, double[] trainingLabels) {
+        fit(dataset, trainingLabels, this.method);
+    }
+
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels, String method) {
+        this.sparse = true;
+        this.sparseDataset = sparseDataset;
+        this.trainingLabels = trainingLabels;
+        this.method = method;
+        this.knn = new AbstractKNN(this.sparseDataset, this.method, this.p);
+    }
+
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels) {
+        fit(sparseDataset, trainingLabels, this.method);
     }
 
     public void setK(int k) {
@@ -99,67 +123,93 @@ public class KNN {
     public void setDistanceMethod(String method) {
         this.method = method;
         if (!sparse) {
-            this.knn = new AbstractKNN(dataset, method);
+            this.knn = new AbstractKNN(dataset, method,this.p);
         } else {
-            this.knn = new AbstractKNN(sparseDataset, method);
+            this.knn = new AbstractKNN(sparseDataset, method, this.p);
         }
     }
 
-    public void setPoints(double[][] points) {
-        if (points != null && testLabels != null && points.length != testLabels.length)
+    public void setPoints(double[][] points, double[] testLabels) {
+        if (points == null) {
+            throw new NullPointerException("Points cannot be null");
+        }
+        if (testLabels == null) {
+            throw new NullPointerException("Test labels cannot be null");
+        }
+        if (points.length != testLabels.length) {
             throw new IllegalArgumentException("Points length must match test labels length.");
-        this.points = extractFeatures(points);
-        this.testLabels = extractLabels(points);
+        }
+
+        this.points = points;
+        this.testLabels = testLabels;
     }
 
     public void setPoints(List<Map<Integer, Double>> sparsePoints, double[] testLabels) {
-        if (sparsePoints != null && testLabels != null && sparsePoints.size() != testLabels.length)
+        if (sparsePoints == null) {
+            throw new NullPointerException("Sparse points cannot be null");
+        }
+        if (testLabels == null) {
+            throw new NullPointerException("Test labels cannot be null");
+        }
+        if (sparsePoints.size() != testLabels.length) {
             throw new IllegalArgumentException("Sparse points size must match test labels length.");
-    
+        }
+
         this.sparsePoints = sparsePoints;
         this.testLabels = testLabels;
     }
 
     public void refreshKNN() {
         if (!sparse && dataset != null) {
-            this.knn = new AbstractKNN(dataset, method);
+            this.knn = new AbstractKNN(this.dataset, this.method, this.p);
         } else if (sparse && sparseDataset != null) {
-            this.knn = new AbstractKNN(sparseDataset, method);
+            this.knn = new AbstractKNN(this.sparseDataset, this.method, this.p);
         }
     }
 
-    public void setTrainingLabels(double[] labels) {
-        this.trainingLabels = labels;
+    public void setTrainingLabels(double[] trainingLabels) {
+        if (trainingLabels.length != dataset.length || trainingLabels.length != sparseDataset.size()) {
+            throw new IllegalArgumentException("Training labels length must match dataset length. The size should be "
+                    + dataset.length + " but got " + trainingLabels.length);
+        }
+        this.trainingLabels = trainingLabels;
     }
 
-    public void setTestLabels(double[] labels) {
-        this.testLabels = labels;
+    public void setTestLabels(double[] testLabels) {
+        if (testLabels.length != points.length || testLabels.length != sparsePoints.size()) {
+            throw new IllegalArgumentException("Test labels length must match points length. The size should be "
+                    + points.length + " but got " + testLabels.length);
+        }
+        this.testLabels = testLabels;
     }
 
     public void recalcOptimalK() {
         if (sparse) {
-            this.k = optimalSparse();
+            this.k = optimal();
         } else {
-            this.k = optimalDense();
+            this.k = optimal();
         }
     }
 
     public LinkedHashMap<Integer, Double> getNeighboursWithDistance(int queryIndex) {
         int n = sparse ? sparseDataset.size() : dataset.length;
+        if (queryIndex < 0 || queryIndex >= n) {
+            throw new IndexOutOfBoundsException("Query index out of bounds.");
+        }
         Map<Integer, Double> distances = new HashMap<>();
 
         for (int i = 0; i < n; i++) {
-            double d = sparse ? knn.distance(sparsePoints.get(queryIndex), sparseDataset.get(i))
-                    : knn.distance(points[queryIndex], dataset[i]);
+            double d;
+            if (sparse) {
+                d = knn.distance(sparsePoints.get(queryIndex), sparseDataset.get(i));
+            } else {
+                d = knn.distance(points[queryIndex], dataset[i]);
+            }
             distances.put(i, d);
         }
 
-        return distances.entrySet().stream()
-                .sorted(Map.Entry.comparingByValue())
-                .limit(k)
-                .collect(LinkedHashMap::new,
-                        (m, e) -> m.put(e.getKey(), e.getValue()),
-                        LinkedHashMap::putAll);
+        return distances.entrySet().stream().sorted(Map.Entry.comparingByValue()).limit(k).collect(LinkedHashMap::new,
+                (m, e) -> m.put(e.getKey(), e.getValue()), LinkedHashMap::putAll);
     }
 
     public int majority(int queryIndex) {
@@ -168,15 +218,10 @@ public class KNN {
 
         for (int idx : neighbours.keySet()) {
             int label = (int) trainingLabels[idx];
-
             counts.put(label, counts.getOrDefault(label, 0) + 1);
         }
 
-        return counts.entrySet()
-                .stream()
-                .max(Map.Entry.comparingByValue())
-                .get()
-                .getKey();
+        return counts.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
     }
 
     public Map<Integer, Double> probability(int queryIndex) {
@@ -212,28 +257,15 @@ public class KNN {
         return (double) correct / n;
     }
 
-    public int optimalDense() {
+    public int optimal() {
         double best = 0.0;
-        int bestK = 1;
+        int bestK = 3;
 
-        int maxK = (int) Math.sqrt(dataset.length);
-        for (int i = 1; i <= maxK; i++) {
-            this.k = i;
-            double acc = accuracy();
-            if (acc > best) {
-                best = acc;
-                bestK = i;
-            }
-        }
-        return bestK;
-    }
-
-    private int optimalSparse() {
-        double best = 0;
-        int bestK = 1;
-
-        int maxK = (int) Math.sqrt(sparseDataset.size());
-        for (int i = 1; i <= maxK; i++) {
+        int length = sparse ? sparseDataset.size() : dataset.length;
+        int maxK = (int) Math.sqrt(length);
+        for (int i = 3; i <= maxK; i++) {
+            if (i % 2 == 0)
+                continue;
             this.k = i;
             double acc = accuracy();
             if (acc > best) {
@@ -261,29 +293,4 @@ public class KNN {
         }
         return list;
     }
-
-    private double[][] extractFeatures(double[][] dataset) {
-        if (dataset[0].length < 2)
-            throw new IllegalArgumentException("Dataset must have at least one feature and one label column.");
-        
-        double[][] datasetIn = new double[dataset.length][dataset[0].length - 1];
-        for (int i = 0; i < dataset.length; i++) {
-            System.arraycopy(dataset[i], 0, datasetIn[i], 0, dataset[0].length - 1);
-        }
-        return datasetIn;
-    }
-
-    private double[] extractLabels(double[][] dataset) {
-        if (dataset[0].length < 2)
-            throw new IllegalArgumentException("Dataset must have at least one feature and one label column.");
-        
-        double[] labels = new double[dataset.length];
-        for (int i = 0; i < dataset.length; i++) {
-            labels[i] = dataset[i][dataset[0].length - 1];
-            if (labels[i] != (int) labels[i])
-                throw new IllegalArgumentException("Labels must be integers");
-        }
-        return labels;
-    }
-
 }
