@@ -1,118 +1,155 @@
 package models.ml.LinearRegression;
 
-/**
- * Abstract class for Linear Regression.
- * Implements linear regression using normal equation and gradient descent.
- *
- * @author Justice
- * @version 1.1
- */
+import java.util.*;
+
 public class AbstractLinearRegression {
-
-    /**
-     * Dataset for linear regression.
-     */
     public double[][] dataset;
+    public List<Map<Integer, Double>> sparseDataset;
+    public double[] trainingLabels;
 
-    /**
-     * Method for linear regression.
-     * Supports "normal" and "gradientDescent".
-     */
+    public boolean sparse;
     public String method;
 
-    /**
-     * Number of samples in the dataset.
-     */
     public int numSamples;
-
-    /**
-     * Number of features in the dataset.
-     */
     public int numFeatures;
 
-    /**
-     * Weights for linear regression.
-     */
+    public double learningRate;
+    public int epochs;
+
     public double[] weights;
 
-    /**
-     * Constructor.
-     * @param dataset dataset for linear regression
-     */
-    public AbstractLinearRegression(double[][] dataset) {
-        this(dataset, "normal", 1, 10);
-    }
+    public AbstractLinearRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
+            int epochs) {
 
-    /**
-     * Constructor.
-     * @param dataset dataset for linear regression
-     * @param method method for linear regression
-     */
-    public AbstractLinearRegression(double[][] dataset, String method) {
-        this(dataset, method, 1, 10);
-    }
+        this.sparse = false;
+        if (dataset == null || dataset.length == 0)
+            throw new IllegalArgumentException("Empty dataset");
 
-    /**
-     * Constructor.
-     * @param dataset dataset for linear regression
-     * @param learningRate learning rate for gradient descent
-     * @param epochs number of epochs for gradient descent
-     */
-    public AbstractLinearRegression(double[][] dataset, double learningRate, int epochs) {
-        this(dataset, "normal", learningRate, epochs);
-    }
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
 
-    /**
-     * Constructor.
-     * @param dataset dataset for linear regression
-     * @param method method for linear regression
-     * @param learningRate learning rate for gradient descent
-     * @param epochs number of epochs for gradient descent
-     */
-    public AbstractLinearRegression(double[][] dataset, String method, double learningRate, int epochs) {
         this.dataset = dataset;
-        this.method = method;
-        this.numSamples = dataset.length;
-        this.numFeatures = dataset[0].length - 1;
 
-        switch (method.toLowerCase()) {
-            case "normal":
-            case "n":
-                fitNormalEquation();
-                break;
-            case "gradientdescent":
-            case "gd":
-                fitGradientDescent(learningRate, epochs);
-                break;
-            default:
-                System.out.println("Method not supported: " + method);
-                break;
+        this.numFeatures = dataset[0].length;
+        for (double[] row : dataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Dense dataset contains null row");
+            if (row.length != numFeatures)
+                throw new IllegalArgumentException("Inconsistent row length");
+            for (double val : row) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Dataset contains NaN or Infinity");
+                }
+            }
         }
+
+        this.numSamples = dataset.length;
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("n", "normal", "gd", "gradientdescent").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
+        this.trainingLabels = trainingLabels;
+        if (trainingLabels.length != numSamples)
+            throw new IllegalArgumentException("Labels size must match number of samples.");
+
+        if (learningRate <= 0 || learningRate > 1) {
+            throw new IllegalArgumentException("Learning rate must be between 0 and 1");
+        }
+        if (epochs <= 0) {
+            throw new IllegalArgumentException("Epochs must be a positive integer");
+        }
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+
+        fit();
     }
 
-    /**
-     * Fits linear regression model using normal equation.
-     * @return weights for linear regression
-     */
-    public double[] fitNormalEquation() {
-        double[][] X = buildDesignMatrix();
-        double[] y = extractTarget();
+    public AbstractLinearRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels, int numFeatures,
+            String method, double learningRate, int epochs) {
+        this.sparse = true;
 
-        double[][] Xt = transpose(X);
-        double[][] XtX = multiply(Xt, X);
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
+
+        if (sparseDataset == null || sparseDataset.isEmpty())
+            throw new IllegalArgumentException("Empty sparse dataset");
+
+        for (Map<Integer, Double> row : sparseDataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Sparse dataset contains null row");
+            for (Map.Entry<Integer, Double> e : row.entrySet()) {
+                int key = e.getKey();
+                double val = e.getValue();
+                if (key < 0 || key >= numFeatures) {
+                    throw new IllegalArgumentException("Sparse dataset contains invalid feature index: " + key);
+                }
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Sparse dataset contains NaN or Infinity");
+                }
+            }
+        }
+
+        this.sparseDataset = sparseDataset;
+        this.trainingLabels = trainingLabels;
+        this.numSamples = sparseDataset.size();
+        this.numFeatures = numFeatures;
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("gd", "gradientdescent").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
+        if (learningRate <= 0 || learningRate > 1) {
+            throw new IllegalArgumentException("Learning rate must be between 0 and 1");
+        }
+        if (epochs <= 0) {
+            throw new IllegalArgumentException("Epochs must be a positive integer");
+        }
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+
+        if (trainingLabels.length != numSamples)
+            throw new IllegalArgumentException("Labels size must match number of samples.");
+
+        fit();
+    }
+
+    public void fit() {
+        if (this.sparse) {
+            fitGradientDescentSparse();
+            validateWeights();
+        } else {
+            switch (method) {
+                case "normal":
+                case "n":
+                    fitNormalEquation();
+                    validateWeights();
+                    break;
+                case "gradientdescent":
+                case "gd":
+                    fitGradientDescent(learningRate, epochs);
+                    validateWeights();
+                    break;
+                default:
+                    System.out.println("Method not supported: " + method);
+                    break;
+            }
+        }
+
+    }
+
+    public double[] fitNormalEquation() {
+        double[][] sparseDataset = buildDesignMatrix();
+
+        double[][] Xt = transpose(sparseDataset);
+        double[][] XtX = multiply(Xt, sparseDataset);
         double[][] XtXInv = invert(XtX);
-        double[] XtY = multiply(Xt, y);
+        double[] XtY = multiply(Xt, trainingLabels);
 
         weights = multiply(XtXInv, XtY);
         return weights;
     }
 
-    /**
-     * Fits linear regression model using gradient descent.
-     * @param learningRate learning rate for gradient descent
-     * @param epochs number of epochs for gradient descent
-     * @return weights for linear regression
-     */
     public double[] fitGradientDescent(double learningRate, int epochs) {
         weights = new double[numFeatures + 1];
 
@@ -121,7 +158,7 @@ public class AbstractLinearRegression {
 
             for (int i = 0; i < numSamples; i++) {
                 double prediction = predictRow(dataset[i]);
-                double error = prediction - dataset[i][numFeatures];
+                double error = prediction - trainingLabels[i];
 
                 gradients[0] += error;
                 for (int j = 0; j < numFeatures; j++) {
@@ -136,65 +173,112 @@ public class AbstractLinearRegression {
         return weights;
     }
 
-    /**
-     * Predicts label for a single query point.
-     * @param row query point
-     * @return label for query point
-     */
+    private void fitGradientDescentSparse() {
+        weights = new double[numFeatures + 1];
+
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            double[] gradients = new double[weights.length];
+
+            for (int i = 0; i < numSamples; i++) {
+                Map<Integer, Double> xi = sparseDataset.get(i);
+                double prediction = predictSparseRow(xi);
+                double error = prediction - trainingLabels[i];
+
+                gradients[0] += error;
+
+                for (var feat : xi.entrySet()) {
+                    gradients[feat.getKey() + 1] += error * feat.getValue();
+                }
+            }
+
+            for (int j = 0; j < weights.length; j++) {
+                weights[j] -= learningRate * gradients[j] / numSamples;
+            }
+        }
+    }
+
     public double predictRow(double[] row) {
+        if (sparse)
+            throw new IllegalStateException("Dense prediction called in sparse mode");
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.length == 0) {
+            throw new IllegalArgumentException("Row cannot be empty");
+        }
+        if (row.length < numFeatures) {
+            throw new IllegalArgumentException("Row must have at least " + numFeatures + " features");
+        }
+        for (double val : row) {
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Row contains NaN or Infinity");
+            }
+        }
+
         double y = weights[0];
         for (int j = 0; j < numFeatures; j++) {
-            y += weights[j + 1] * row[j];
+            if (j < row.length) {
+                y += weights[j + 1] * row[j];
+            } else {
+                y += weights[j + 1] * 0;
+            }
         }
         return y;
     }
 
+    public double predictSparseRow(Map<Integer, Double> x) {
+        if (!sparse)
+            throw new IllegalStateException("Sparse prediction called in dense mode");
+        if (x == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (x.isEmpty())
+            throw new IllegalArgumentException("Row cannot be empty");
 
-    /**
-     * Predicts labels for a set of query points.
-     * @param X set of query points
-     * @return labels for query points
-     */
-    public double[] predict(double[][] X) {
-        double[] predictions = new double[X.length];
-        for (int i = 0; i < X.length; i++) {
-            predictions[i] = predictRow(X[i]);
+        for (Map.Entry<Integer, Double> e : x.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0 || key >= numFeatures) {
+                throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
+            }
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+            }
+        }
+
+        double y = weights[0];
+        for (var e : x.entrySet()) {
+            y += weights[e.getKey() + 1] * e.getValue();
+        }
+        return y;
+    }
+
+    public double[] predict(double[][] query) {
+        double[] predictions = new double[query.length];
+        for (int i = 0; i < query.length; i++) {
+            predictions[i] = predictRow(query[i]);
         }
         return predictions;
     }
-    
-    /**
-     * Builds design matrix for linear regression.
-     * @return design matrix
-     */
+
+    public double[] predictSparse(List<Map<Integer, Double>> query) {
+        double[] preds = new double[query.size()];
+        for (int i = 0; i < query.size(); i++) {
+            preds[i] = predictSparseRow(query.get(i));
+        }
+        return preds;
+    }
+
     public double[][] buildDesignMatrix() {
-        double[][] X = new double[numSamples][numFeatures + 1];
+        double[][] sparseDataset = new double[numSamples][numFeatures + 1];
         for (int i = 0; i < numSamples; i++) {
-            X[i][0] = 1.0;
+            sparseDataset[i][0] = 1.0;
             for (int j = 0; j < numFeatures; j++) {
-                X[i][j + 1] = dataset[i][j];
+                sparseDataset[i][j + 1] = dataset[i][j];
             }
         }
-        return X;
+        return sparseDataset;
     }
 
-    /**
-     * Extracts target from dataset.
-     * @return target
-     */
-    public double[] extractTarget() {
-        double[] y = new double[numSamples];
-        for (int i = 0; i < numSamples; i++) {
-            y[i] = dataset[i][numFeatures];
-        }
-        return y;
-    }
-
-    /**
-     * Transposes matrix.
-     * @param A matrix
-     * @return transposed matrix
-     */
     public static double[][] transpose(double[][] A) {
         double[][] T = new double[A[0].length][A.length];
         for (int i = 0; i < A.length; i++)
@@ -204,12 +288,6 @@ public class AbstractLinearRegression {
         return T;
     }
 
-    /**
-     * Multiplies matrix.
-     * @param A first matrix
-     * @param B second matrix
-     * @return product matrix
-     */
     public static double[][] multiply(double[][] A, double[][] B) {
         double[][] C = new double[A.length][B[0].length];
         for (int i = 0; i < A.length; i++)
@@ -220,12 +298,6 @@ public class AbstractLinearRegression {
         return C;
     }
 
-    /**
-     * Multiplies matrix and vector.
-     * @param A matrix
-     * @param x vector
-     * @return product vector
-     */
     public static double[] multiply(double[][] A, double[] x) {
         double[] y = new double[A.length];
         for (int i = 0; i < A.length; i++)
@@ -235,11 +307,6 @@ public class AbstractLinearRegression {
         return y;
     }
 
-    /**
-     * Inverts matrix.
-     * @param A matrix
-     * @return inverted matrix
-     */
     public static double[][] invert(double[][] A) {
         int n = A.length;
         double[][] I = new double[n][n];
@@ -273,10 +340,14 @@ public class AbstractLinearRegression {
         return I;
     }
 
-    /**
-     * Gets weights for linear regression.
-     * @return weights
-     */
+    private void validateWeights() {
+        for (double w : weights) {
+            if (Double.isNaN(w) || Double.isInfinite(w)) {
+                throw new IllegalStateException("Model weights contain NaN or Infinity after training");
+            }
+        }
+    }
+
     public double[] getWeights() {
         return weights;
     }

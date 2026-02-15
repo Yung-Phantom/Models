@@ -1,8 +1,6 @@
 package models.ml.KNN;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class AbstractKNN {
     public double[][] dataset;
@@ -19,6 +17,8 @@ public class AbstractKNN {
     public double[][] distances;
 
     public AbstractKNN(List<Map<Integer, Double>> sparseDataset, String method, int p) {
+        
+        this.sparse = true;
         if (method == null)
             throw new IllegalArgumentException("Method cannot be null");
 
@@ -28,6 +28,8 @@ public class AbstractKNN {
         for (Map<Integer, Double> row : sparseDataset) {
             if (row == null)
                 throw new IllegalArgumentException("Sparse dataset contains null row");
+            if (row.size() != numFeatures)
+                throw new IllegalArgumentException("Inconsistent row length");
             for (double val : row.values()) {
                 if (Double.isNaN(val) || Double.isInfinite(val)) {
                     throw new IllegalArgumentException("Dataset contains NaN or Infinity");
@@ -43,10 +45,11 @@ public class AbstractKNN {
             throw new IllegalArgumentException("Unsupported method: " + method);
 
         this.p = p;
-        this.sparse = true;
     }
 
     public AbstractKNN(double[][] dataset, String method, int p) {
+        
+        this.sparse = false;
         if (dataset == null || dataset.length == 0)
             throw new IllegalArgumentException("Empty dataset");
 
@@ -57,6 +60,8 @@ public class AbstractKNN {
 
         this.numFeatures = dataset[0].length;
         for (double[] row : dataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Dense dataset contains null row");
             if (row.length != numFeatures)
                 throw new IllegalArgumentException("Inconsistent row length");
             for (double val : row) {
@@ -73,14 +78,14 @@ public class AbstractKNN {
             throw new IllegalArgumentException("Unsupported method: " + method);
 
         this.p = p;
-        this.sparse = false;
     }
 
     public double distance(double[] x, double[] y) {
         if (sparse) {
             throw new IllegalStateException("Dense distance called in sparse mode");
         }
-
+        if (x == null || y == null)
+            throw new IllegalArgumentException("Vectors cannot be null");
         if (x.length != numFeatures || y.length != numFeatures)
             throw new IllegalArgumentException("Vector dimension mismatch");
 
@@ -104,6 +109,8 @@ public class AbstractKNN {
         }
         if (x == null || y == null)
             throw new IllegalArgumentException("Vectors cannot be null");
+        if (x.size() != numFeatures || y.size() != numFeatures)
+            throw new IllegalArgumentException("Vector dimension mismatch");
 
         switch (method) {
             case "euclidean":
@@ -274,9 +281,6 @@ public class AbstractKNN {
     }
 
     public double[][] getDistances(double[][] query) {
-        if (sparse)
-            throw new IllegalStateException("Dense getDistances called in sparse mode");
-
         if (query == null) {
             throw new NullPointerException("Query cannot be null");
         }
@@ -301,9 +305,6 @@ public class AbstractKNN {
     }
 
     public double[][] getDistances(List<Map<Integer, Double>> query) {
-        if (!sparse)
-            throw new IllegalStateException("Sparse getDistances called in dense mode");
-
         if (query == null) {
             throw new NullPointerException("Query cannot be null");
         }
