@@ -1,101 +1,123 @@
 package models.ml.LogisticRegression;
 
-/**
- * Abstract class for Logistic Regression.
- * Provides implementations for binary, multinomial, and ordinal logistic
- * regression
- * using gradient descent optimization.
- * 
- * @author Justice
- * @version 1.0
- */
+import java.util.*;
+
 public class AbstractLogisticRegression {
-
-    /** The dataset to fit the model to. */
     public double[][] dataset;
+    public List<Map<Integer, Double>> sparseDataset;
+    public double[] trainingLabels;
 
-    /** The number of samples in the dataset. */
-    public int numSamples;
-
-    /** The number of features in the dataset. */
-    public int numFeatures;
-
-    /** The weights for the logistic regression model. */
-    public double[] weights;
-
-    /** The learning rate for gradient descent. */
-    public double learningRate;
-
-    /** The number of epochs for gradient descent. */
-    public int epochs;
-
-    /**
-     * The weights for the multinomial logistic regression model. Each row
-     * represents the weights for a class, and each column represents the weights
-     * for a feature.
-     */
-    public double[][] multiWeights;
-
-    /**
-     * The thresholds for the logistic regression model. Each element
-     * represents the threshold for a class. The threshold is used to
-     * determine the class label for a given input vector.
-     */
-    public double[] thresholds;
-
+    public boolean sparse;
     public String method;
 
-    /**
-     * Constructor for logistic regression with default settings.
-     * Defaults to binary logistic regression with learningRate = 0.01 and epochs =
-     * 1000.
-     *
-     * @param dataset The dataset to fit the model to.
-     */
-    public AbstractLogisticRegression(double[][] dataset) {
-        this(dataset, "binary", 0.01, 1000);
-    }
+    public int numSamples;
+    public int numFeatures;
 
-    /**
-     * Constructor for logistic regression with specified method.
-     * Defaults to learningRate = 0.01 and epochs = 1000.
-     *
-     * @param dataset The dataset to fit the model to.
-     * @param method  The method to use ("binary", "multinomial", "ordinal").
-     */
-    public AbstractLogisticRegression(double[][] dataset, String method) {
-        this(dataset, method, 0.01, 1000);
-    }
+    public double learningRate;
+    public int epochs;
 
-    /**
-     * Constructor for logistic regression with specified learning parameters.
-     * Defaults to binary logistic regression.
-     *
-     * @param dataset      The dataset to fit the model to.
-     * @param learningRate The learning rate for gradient descent.
-     * @param epochs       The number of epochs for gradient descent.
-     */
-    public AbstractLogisticRegression(double[][] dataset, double learningRate, int epochs) {
-        this(dataset, "binary", learningRate, epochs);
-    }
+    public double[] weights;
+    public double[][] multiWeights;
+    public double[] thresholds;
 
-    /**
-     * Constructor for logistic regression with full specification.
-     *
-     * @param dataset      The dataset to fit the model to.
-     * @param method       The method to use ("binary", "multinomial", "ordinal").
-     * @param learningRate The learning rate for gradient descent.
-     * @param epochs       The number of epochs for gradient descent.
-     */
-    public AbstractLogisticRegression(double[][] dataset, String method, double learningRate, int epochs) {
+    public AbstractLogisticRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
+            int epochs) {
+
+        this.sparse = false;
+        if (dataset == null || dataset.length == 0)
+            throw new IllegalArgumentException("Empty dataset");
+
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
+
         this.dataset = dataset;
-        this.method = method;
+
+        this.numFeatures = dataset[0].length;
+        for (double[] row : dataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Dense dataset contains null row");
+            if (row.length != numFeatures)
+                throw new IllegalArgumentException("Inconsistent row length");
+            for (double val : row) {
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Dataset contains NaN or Infinity");
+                }
+            }
+        }
+
+        this.numSamples = dataset.length;
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("b", "binary", "m", "multinomial", "o", "ordinal").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
+        this.trainingLabels = trainingLabels;
+        if (trainingLabels.length != numSamples)
+            throw new IllegalArgumentException("Labels size must match number of samples.");
+
+        if (learningRate <= 0 || learningRate > 1) {
+            throw new IllegalArgumentException("Learning rate must be between 0 and 1");
+        }
+        if (epochs <= 0) {
+            throw new IllegalArgumentException("Epochs must be a positive integer");
+        }
         this.learningRate = learningRate;
         this.epochs = epochs;
-        this.numSamples = dataset.length;
-        this.numFeatures = dataset[0].length - 1;
 
-        switch (method.toLowerCase()) {
+        fit();
+    }
+
+    public AbstractLogisticRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            int numFeatures, String method, double learningRate, int epochs) {
+        this.sparse = true;
+
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null");
+
+        if (sparseDataset == null || sparseDataset.isEmpty())
+            throw new IllegalArgumentException("Empty sparse dataset");
+
+        for (Map<Integer, Double> row : sparseDataset) {
+            if (row == null)
+                throw new IllegalArgumentException("Sparse dataset contains null row");
+            for (Map.Entry<Integer, Double> e : row.entrySet()) {
+                int key = e.getKey();
+                double val = e.getValue();
+                if (key < 0 || key >= numFeatures) {
+                    throw new IllegalArgumentException("Sparse dataset contains invalid feature index: " + key);
+                }
+                if (Double.isNaN(val) || Double.isInfinite(val)) {
+                    throw new IllegalArgumentException("Sparse dataset contains NaN or Infinity");
+                }
+            }
+        }
+
+        this.sparseDataset = sparseDataset;
+        this.trainingLabels = trainingLabels;
+        this.numSamples = sparseDataset.size();
+        this.numFeatures = numFeatures;
+
+        this.method = method.trim().toLowerCase();
+        if (!Set.of("b", "binary", "m", "multinomial", "o", "ordinal").contains(this.method))
+            throw new IllegalArgumentException("Unsupported method: " + method);
+
+        if (learningRate <= 0 || learningRate > 1) {
+            throw new IllegalArgumentException("Learning rate must be between 0 and 1");
+        }
+        if (epochs <= 0) {
+            throw new IllegalArgumentException("Epochs must be a positive integer");
+        }
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+
+        if (trainingLabels.length != numSamples)
+            throw new IllegalArgumentException("Labels size must match number of samples.");
+
+        fit();
+    }
+
+    private void fit() {
+        switch (method) {
             case "binary":
             case "b":
                 fitBinaryLogistic();
@@ -109,25 +131,14 @@ public class AbstractLogisticRegression {
                 fitOrdinalLogistic();
                 break;
             default:
-                throw new IllegalArgumentException("Unsupported logistic regression method: " + method);
+                throw new UnsupportedOperationException("Unsupported method: " + method);
         }
     }
 
-    /**
-     * Computes the sigmoid of a given value
-     *
-     * @param z the value of which to compute the sigmoid
-     * @return the sigmoid of z
-     *
-     */
     public double sigmoid(double z) {
         return 1.0 / (1.0 + Math.exp(-z));
     }
 
-    /**
-     * Fits a binary logistic regression model using gradient descent.
-     * Updates the weights based on the dataset.
-     */
     public void fitBinaryLogistic() {
         weights = new double[numFeatures + 1];
         double[] gradients = new double[weights.length];
@@ -138,17 +149,29 @@ public class AbstractLogisticRegression {
                 gradients[j] = 0.0;
 
             for (int i = 0; i < numSamples; i++) {
-                double[] row = dataset[i];
-                double y = row[numFeatures]; // 0 or 1
 
-                double z = predictRow(row);
+                double z;
+                if (sparse) {
+                    z = predictRowSparse(sparseDataset.get(i));
+                } else {
+                    z = predictRow(dataset[i]);
+                }
                 double p = sigmoid(z);
 
-                double error = p - y;
+                double error = p - trainingLabels[i];
 
                 gradients[0] += error;
-                for (int j = 0; j < numFeatures; j++)
-                    gradients[j + 1] += error * row[j];
+                if (!sparse) {
+                    for (int j = 0; j < numFeatures; j++)
+                        gradients[j + 1] += error * dataset[i][j];
+                } else {
+                    for (var e : sparseDataset.get(i).entrySet()) {
+                        int idx = e.getKey();
+                        if (idx >= 0 && idx < numFeatures) {
+                            gradients[idx + 1] += error * e.getValue();
+                        }
+                    }
+                }
             }
 
             for (int j = 0; j < weights.length; j++)
@@ -156,15 +179,10 @@ public class AbstractLogisticRegression {
         }
     }
 
-    /**
-     * Fits a multinomial logistic regression model using gradient descent.
-     * Updates the weights based on the dataset.
-     */
-
     public void fitMultinomialLogistic() {
         int numClasses = 0;
-        for (double[] row : dataset) {
-            numClasses = Math.max(numClasses, (int) row[numFeatures] + 1);
+        for (double label : trainingLabels) {
+            numClasses = Math.max(numClasses, (int) label + 1);
         }
 
         multiWeights = new double[numClasses][numFeatures + 1];
@@ -172,52 +190,61 @@ public class AbstractLogisticRegression {
 
         for (int epoch = 0; epoch < epochs; epoch++) {
 
-            for (int c = 0; c < numClasses; c++) {
-                for (int j = 0; j <= numFeatures; j++) {
+            for (int c = 0; c < numClasses; c++)
+                for (int j = 0; j <= numFeatures; j++)
                     gradients[c][j] = 0.0;
-                }
-            }
 
             for (int i = 0; i < numSamples; i++) {
-                double[] row = dataset[i];
-                int y = (int) row[numFeatures];
+                int y = (int) trainingLabels[i];
 
                 double[] scores = new double[numClasses];
+
+                // ----- scores -----
                 for (int c = 0; c < numClasses; c++) {
                     scores[c] = multiWeights[c][0];
-                    for (int j = 0; j < numFeatures; j++) {
-                        scores[c] += multiWeights[c][j + 1] * row[j];
+
+                    if (!sparse) {
+                        for (int j = 0; j < numFeatures; j++)
+                            scores[c] += multiWeights[c][j + 1] * dataset[i][j];
+                    } else {
+                        for (var e : sparseDataset.get(i).entrySet()) {
+                            int idx = e.getKey();
+                            if (idx >= 0 && idx < numFeatures)
+                                scores[c] += multiWeights[c][idx + 1] * e.getValue();
+                        }
                     }
                 }
 
                 double[] probs = softmax(scores);
 
+                // ----- gradients -----
                 for (int c = 0; c < numClasses; c++) {
                     double error = probs[c] - (c == y ? 1.0 : 0.0);
                     gradients[c][0] += error;
-                    for (int j = 0; j < numFeatures; j++) {
-                        gradients[c][j + 1] += error * row[j];
+
+                    if (!sparse) {
+                        for (int j = 0; j < numFeatures; j++)
+                            gradients[c][j + 1] += error * dataset[i][j];
+                    } else {
+                        for (var e : sparseDataset.get(i).entrySet()) {
+                            int idx = e.getKey();
+                            if (idx >= 0 && idx < numFeatures)
+                                gradients[c][idx + 1] += error * e.getValue();
+                        }
                     }
                 }
             }
 
-            for (int c = 0; c < numClasses; c++) {
-                for (int j = 0; j <= numFeatures; j++) {
+            for (int c = 0; c < numClasses; c++)
+                for (int j = 0; j <= numFeatures; j++)
                     multiWeights[c][j] -= learningRate * gradients[c][j] / numSamples;
-                }
-            }
         }
     }
 
-    /**
-     * Fits an ordinal logistic regression model using gradient descent.
-     * Updates the weights based on the dataset.
-     */
-
     public void fitOrdinalLogistic() {
         int numClasses = 0;
-        for (double[] row : dataset)
-            numClasses = Math.max(numClasses, (int) row[numFeatures] + 1);
+        for (double label : trainingLabels)
+            numClasses = Math.max(numClasses, (int) label + 1);
 
         weights = new double[numFeatures + 1];
         thresholds = new double[numClasses - 1];
@@ -233,20 +260,29 @@ public class AbstractLogisticRegression {
                 gradT[j] = 0.0;
 
             for (int i = 0; i < numSamples; i++) {
-                double[] row = dataset[i];
-                int y = (int) row[numFeatures];
-
-                double z = predictRow(row);
+                double z = sparse
+                        ? predictRowSparse(sparseDataset.get(i))
+                        : predictRow(dataset[i]);
 
                 for (int k = 0; k < thresholds.length; k++) {
                     double p = sigmoid(thresholds[k] - z);
-                    double t = (y <= k) ? 1.0 : 0.0;
+                    double t = (trainingLabels[i] <= k) ? 1.0 : 0.0;
                     double error = p - t;
 
                     gradT[k] += error;
                     gradW[0] -= error;
-                    for (int j = 0; j < numFeatures; j++)
-                        gradW[j + 1] -= error * row[j];
+                    if (!sparse) {
+                        for (int j = 0; j < numFeatures; j++) {
+                            gradW[j + 1] -= error * dataset[i][j];
+                        }
+                    } else {
+                        for (var e : sparseDataset.get(i).entrySet()) {
+                            int idx = e.getKey();
+                            if (idx >= 0 && idx < numFeatures) {
+                                gradW[idx + 1] -= error * e.getValue();
+                            }
+                        }
+                    }
                 }
             }
 
@@ -258,12 +294,6 @@ public class AbstractLogisticRegression {
         }
     }
 
-    /**
-     * Computes the softmax function for a given vector.
-     *
-     * @param z Input vector.
-     * @return Probability distribution after applying softmax.
-     */
     public double[] softmax(double[] z) {
         double sum = 0.0;
         double[] probabilities = new double[z.length];
@@ -277,17 +307,54 @@ public class AbstractLogisticRegression {
         return probabilities;
     }
 
-    /**
-     * Predicts the raw linear combination (z) for a single row.
-     * Subclasses may apply sigmoid or softmax to convert into probabilities.
-     *
-     * @param row Input feature row.
-     * @return Raw prediction value (z).
-     */
     public double predictRow(double[] row) {
+        if (sparse)
+            throw new IllegalStateException("Dense prediction called in sparse mode");
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.length == 0) {
+            throw new IllegalArgumentException("Row cannot be empty");
+        }
+        if (row.length < numFeatures) {
+            throw new IllegalArgumentException("Row must have at least " + numFeatures + " features");
+        }
+        for (double val : row) {
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Row contains NaN or Infinity");
+            }
+        }
         double z = weights[0];
         for (int j = 0; j < numFeatures; j++) {
             z += weights[j + 1] * row[j];
+        }
+        return z;
+    }
+
+    private double predictRowSparse(Map<Integer, Double> row) {
+        if (!sparse)
+            throw new IllegalStateException("Sparse prediction called in dense mode");
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (row.isEmpty())
+            throw new IllegalArgumentException("Row cannot be empty");
+
+        for (Map.Entry<Integer, Double> e : row.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0 || key >= numFeatures) {
+                throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
+            }
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+            }
+        }
+        double z = weights[0];
+        for (var e : row.entrySet()) {
+            int idx = e.getKey();
+            if (idx >= 0 && idx < numFeatures) {
+                z += weights[idx + 1] * e.getValue();
+            }
         }
         return z;
     }
@@ -307,22 +374,20 @@ public class AbstractLogisticRegression {
 
     public double[] predictProbabilitiesOrdinal(double[] row) {
         int K = thresholds.length + 1;
-        double[] cum = new double[K - 1];
+        double[] cumulativeProbabilityulativeProbability = new double[K - 1];
         double[] probs = new double[K];
 
         double z = predictRow(row);
 
-        // cumulative probabilities P(Y <= k)
         for (int k = 0; k < K - 1; k++) {
-            cum[k] = sigmoid(thresholds[k] - z);
+            cumulativeProbabilityulativeProbability[k] = sigmoid(thresholds[k] - z);
         }
 
-        // convert cumulative -> class probabilities
-        probs[0] = cum[0];
+        probs[0] = cumulativeProbabilityulativeProbability[0];
         for (int k = 1; k < K - 1; k++) {
-            probs[k] = cum[k] - cum[k - 1];
+            probs[k] = cumulativeProbabilityulativeProbability[k] - cumulativeProbabilityulativeProbability[k - 1];
         }
-        probs[K - 1] = 1.0 - cum[K - 2];
+        probs[K - 1] = 1.0 - cumulativeProbabilityulativeProbability[K - 2];
 
         return probs;
     }
@@ -358,7 +423,70 @@ public class AbstractLogisticRegression {
         }
     }
 
-    // Getter for weights
+    public int predictClass(Map<Integer, Double> row) {
+        switch (method) {
+            case "binary":
+            case "b":
+                return sigmoid(predictRowSparse(row)) >= 0.5 ? 1 : 0;
+
+            case "multinomial":
+            case "m": {
+                return predictMultinomialClass(row);
+            }
+            case "ordinal":
+            case "o": {
+                predictOrdinalClass(row);
+            }
+
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public int predictMultinomialClass(Map<Integer, Double> row) {
+        int numClasses = multiWeights.length;
+        double[] scores = new double[numClasses];
+
+        for (int c = 0; c < numClasses; c++) {
+            scores[c] = multiWeights[c][0];
+            for (var e : row.entrySet()) {
+                int idx = e.getKey();
+                if (idx >= 0 && idx < numFeatures) {
+                    scores[c] += multiWeights[c][idx + 1] * e.getValue();
+                }
+            }
+        }
+
+        double[] probs = softmax(scores);
+        int best = 0;
+        for (int i = 1; i < probs.length; i++)
+            if (probs[i] > probs[best])
+                best = i;
+        return best;
+    }
+
+    public int predictOrdinalClass(Map<Integer, Double> row) {
+        int K = thresholds.length + 1;
+        double[] cumulativeProbability = new double[K - 1];
+        double[] probs = new double[K];
+
+        double z = predictRowSparse(row);
+
+        for (int k = 0; k < K - 1; k++)
+            cumulativeProbability[k] = sigmoid(thresholds[k] - z);
+
+        probs[0] = cumulativeProbability[0];
+        for (int k = 1; k < K - 1; k++)
+            probs[k] = cumulativeProbability[k] - cumulativeProbability[k - 1];
+        probs[K - 1] = 1.0 - cumulativeProbability[K - 2];
+
+        int best = 0;
+        for (int i = 1; i < probs.length; i++)
+            if (probs[i] > probs[best])
+                best = i;
+        return best;
+    }
+
     public double[] getWeights() {
         return weights;
     }

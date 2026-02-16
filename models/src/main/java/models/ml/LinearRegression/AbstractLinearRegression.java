@@ -269,14 +269,14 @@ public class AbstractLinearRegression {
     }
 
     public double[][] buildDesignMatrix() {
-        double[][] sparseDataset = new double[numSamples][numFeatures + 1];
+        double[][] designMatrix = new double[numSamples][numFeatures + 1];
         for (int i = 0; i < numSamples; i++) {
-            sparseDataset[i][0] = 1.0;
+            designMatrix[i][0] = 1.0;
             for (int j = 0; j < numFeatures; j++) {
-                sparseDataset[i][j + 1] = dataset[i][j];
+                designMatrix[i][j + 1] = dataset[i][j];
             }
         }
-        return sparseDataset;
+        return designMatrix;
     }
 
     public static double[][] transpose(double[][] A) {

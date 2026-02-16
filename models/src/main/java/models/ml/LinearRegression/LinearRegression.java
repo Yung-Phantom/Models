@@ -22,6 +22,8 @@ public class LinearRegression {
 
     public AbstractLinearRegression lr;
 
+    public int numFeatures;
+
     public LinearRegression() {
     }
 
@@ -81,6 +83,7 @@ public class LinearRegression {
         this.learningRate = learningRate;
         this.epochs = epochs;
 
+        this.numFeatures = numFeatures;
         this.lr = new AbstractLinearRegression(sparseDataset, trainingLabels, numFeatures, method, learningRate,
                 epochs);
     }
@@ -92,7 +95,7 @@ public class LinearRegression {
 
     public void fit(double[][] dataset, double[] trainingLabels, String method) {
         if (sparse)
-            throw new IllegalStateException("Use fitSparse for sparse models.");
+            throw new IllegalStateException("Use the right fit for sparse models.");
         this.dataset = dataset;
         this.trainingLabels = trainingLabels;
         this.method = method;
@@ -139,12 +142,6 @@ public class LinearRegression {
             throw new IllegalStateException("No sparse query points provided.");
         return lr.predictSparse(sparsePoints);
     }
-
-    /**
-     * Mean Squared Error (MSE)
-     * 
-     * @return MSE
-     */
     public double mse() {
         if (testLabels == null)
             throw new IllegalStateException("No test labels provided.");
@@ -167,11 +164,6 @@ public class LinearRegression {
         return sum / testLabels.length;
     }
 
-    /**
-     * R² score
-     * 
-     * @return R² score
-     */
     public double r2() {
         if (testLabels == null)
             throw new IllegalStateException("No test labels provided.");
@@ -302,12 +294,12 @@ public class LinearRegression {
                 this.epochs);
     }
 
-    public void refreshLinearRegression(int numFeatures) {
+    public void refreshLinearRegression() {
         if (!sparse && dataset != null) {
             this.lr = new AbstractLinearRegression(this.dataset, this.trainingLabels, this.method, this.learningRate,
                     this.epochs);
         } else if (sparse && sparseDataset != null) {
-            this.lr = new AbstractLinearRegression(this.sparseDataset, this.trainingLabels, numFeatures, this.method,
+            this.lr = new AbstractLinearRegression(this.sparseDataset, this.trainingLabels, this.numFeatures, this.method,
                     this.learningRate, this.epochs);
         }
     }
