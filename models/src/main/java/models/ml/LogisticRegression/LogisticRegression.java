@@ -7,23 +7,23 @@ public class LogisticRegression {
     public double[][] dataset;
     public double[][] points;
 
-    private List<Map<Integer, Double>> sparseDataset;
-    private List<Map<Integer, Double>> sparsePoints;
+    public List<Map<Integer, Double>> sparseDataset;
+    public List<Map<Integer, Double>> sparsePoints;
 
-    private double[] trainingLabels;
-    private double[] testLabels;
+    public double[] trainingLabels;
+    public double[] testLabels;
 
     public AbstractLogisticRegression lr;
-    private boolean sparse;
-    private String method;
-    private double learningRate;
-    private int epochs;
-    private int numFeatures;
+    public boolean sparse;
+    public String method;
+    public double learningRate;
+    public int epochs;
+    public int numFeatures;
 
     public LogisticRegression() {
     }
 
-    private LogisticRegression(double[][] dataset, double[][] points,
+    public LogisticRegression(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels,
             String method, double learningRate, int epochs) {
 
         this.sparse = false;
@@ -51,8 +51,9 @@ public class LogisticRegression {
         refresh();
     }
 
-    public LogisticRegression(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
-            double[] trainingLabels, double[] testLabels, int numFeatures, String method, double learningRate,
+    public LogisticRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> sparsePoints,
+            double[] testLabels, int numFeatures, String method, double learningRate,
             int epochs) {
 
         this.sparse = true;
@@ -82,17 +83,13 @@ public class LogisticRegression {
         refresh();
     }
 
-    public LogisticRegression(double[][] dataset, double[][] points) {
-        this(dataset, points, "binary", 0.01, 1000);
+    public LogisticRegression(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels) {
+        this(dataset, trainingLabels, points, testLabels, "binary", 0.01, 1000);
     }
 
-    public LogisticRegression(List<Map<Integer, Double>> sparseDataset,
-            List<Map<Integer, Double>> sparsePoints,
-            double[] trainingLabels,
-            double[] testLabels,
-            int numFeatures) {
-        this(sparseDataset, sparsePoints, trainingLabels, testLabels,
-                numFeatures, "binary", 0.01, 1000);
+    public LogisticRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> sparsePoints, double[] testLabels, int numFeatures) {
+        this(sparseDataset, trainingLabels, sparsePoints, testLabels, numFeatures, "binary", 0.01, 1000);
     }
 
     public void fit(double[][] dataset, double[] trainingLabels, String method) {
@@ -104,17 +101,16 @@ public class LogisticRegression {
         if (trainingLabels == null || trainingLabels.length == 0) {
             throw new IllegalArgumentException("Training labels cannot be null or empty.");
         }
-        
+
         if (method == null) {
             throw new IllegalArgumentException("Method cannot be null.");
         }
-        
-        
+
         if (!sparse && trainingLabels.length != dataset.length) {
             throw new IllegalArgumentException("Training labels length must match dataset length. Expected "
                     + dataset.length + " but got " + trainingLabels.length);
         }
-        
+
         this.dataset = dataset;
         this.trainingLabels = trainingLabels;
         this.method = method;
@@ -131,13 +127,13 @@ public class LogisticRegression {
         if (trainingLabels == null || trainingLabels.length == 0) {
             throw new IllegalArgumentException("Training labels cannot be null or empty.");
         }
-        if(numFeatures <= 0) {
+        if (numFeatures <= 0) {
             throw new IllegalArgumentException("numFeatures must be positive.");
         }
-        if(method == null) {
+        if (method == null) {
             throw new IllegalArgumentException("Method cannot be null.");
         }
-        
+
         if (sparse && trainingLabels.length != sparseDataset.size()) {
             throw new IllegalArgumentException("Training labels length must match sparse dataset size. Expected "
                     + sparseDataset.size() + " but got " + trainingLabels.length);
@@ -208,6 +204,7 @@ public class LogisticRegression {
         }
         return sum / testLabels.length;
     }
+
     public double r2() {
         if (testLabels == null)
             throw new IllegalStateException("No test labels available");

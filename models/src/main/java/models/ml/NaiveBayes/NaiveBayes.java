@@ -5,75 +5,172 @@ import java.util.*;
 public class NaiveBayes {
     private double[][] dataset;
     private double[][] points;
+
     private List<Map<Integer, Double>> sparseDataset;
     private List<Map<Integer, Double>> sparsePoints;
+
     private double[] trainingLabels;
     private double[] testLabels;
+
     private AbstractNaiveBayes nb;
     private boolean sparse;
     private String method;
     private double alpha;
 
-    // Dense constructor
-    public NaiveBayes(double[][] dataset, double[][] points, String method, double alpha) {
+    // ---------------- Constructors ----------------
+
+    public NaiveBayes() {}
+
+    public NaiveBayes(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels,
+                      String method, double alpha) {
+        this.sparse = false;
+        validateDenseInputs(dataset, trainingLabels, points, testLabels);
+
         this.dataset = dataset;
         this.points = points;
-        this.sparse = false;
-        this.method = method != null ? method : "gaussian";
+        this.trainingLabels = trainingLabels;
+        this.testLabels = testLabels;
+        this.method = method;
         this.alpha = alpha;
-        this.trainingLabels = extractLabels(dataset);
-        this.testLabels = extractLabels(points);
-        this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
+
+        refreshNaiveBayes();
     }
 
-    // Sparse constructor
-    public NaiveBayes(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
-            double[] trainingLabels, double[] testLabels, String method, double alpha) {
+    public NaiveBayes(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+                      List<Map<Integer, Double>> sparsePoints, double[] testLabels,
+                      String method, double alpha) {
+        this.sparse = true;
+        validateSparseInputs(sparseDataset, sparsePoints, trainingLabels, testLabels);
+
         this.sparseDataset = sparseDataset;
         this.sparsePoints = sparsePoints;
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
-        this.sparse = true;
-        this.method = method != null ? method : "gaussian";
+        this.method = method;
         this.alpha = alpha;
-        this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
+
+        refreshNaiveBayes();
     }
 
-    // Convenience constructor for dense dataset with default Gaussian method and
-    // alpha=1.0
-    public NaiveBayes(double[][] dataset, double[][] points) {
-        this(dataset, points, "gaussian", 1.0);
+    public NaiveBayes(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels) {
+        this(dataset, trainingLabels, points, testLabels, "gaussian", 1.0);
     }
 
-    // Convenience constructor for sparse dataset with default Gaussian method and
-    // alpha=1.0
-    public NaiveBayes(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints) {
-        this(sparseDataset, sparsePoints, null, null, "gaussian", 1.0);
+    public NaiveBayes(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+                      List<Map<Integer, Double>> sparsePoints, double[] testLabels) {
+        this(sparseDataset, trainingLabels, sparsePoints, testLabels, "gaussian", 1.0);
     }
 
-    // Method to fit the model on the training data (Dense)
-    public void fit(double[][] dataset, double[] labels, String method, double alpha) {
+    // ---------------- Fit Methods ----------------
+
+    public void fit(double[][] dataset, double[] trainingLabels, String method, double alpha) {
+        if (sparse) throw new IllegalStateException("Use the sparse fit method for sparse models.");
+        validateDenseInputs(dataset, trainingLabels, this.points, this.testLabels);
+
         this.dataset = dataset;
-        this.trainingLabels = labels != null ? labels : extractLabels(dataset);
-        this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
+        this.trainingLabels = trainingLabels;
+        this.method = method;
+        this.alpha = alpha;
         this.sparse = false;
+
+        refreshNaiveBayes();
     }
 
-    public void fit(double[][] dataset, double[] labels) {
-        fit(dataset, labels, method, alpha);
+    public void fit(double[][] dataset, double[] trainingLabels) {
+        fit(dataset, trainingLabels, this.method, this.alpha);
     }
 
-    // Method to fit the model on the training data (Sparse)
-    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels, String method, double alpha) {
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels, String method, double alpha) {
+        if (!sparse) throw new IllegalStateException("Use the dense fit method for dense models.");
+        validateSparseInputs(sparseDataset, this.sparsePoints, trainingLabels, this.testLabels);
+
         this.sparseDataset = sparseDataset;
-        this.trainingLabels = labels;
-        this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
+        this.trainingLabels = trainingLabels;
+        this.method = method;
+        this.alpha = alpha;
         this.sparse = true;
+
+        refreshNaiveBayes();
     }
 
-    public void fit(List<Map<Integer, Double>> sparseDataset, double[] labels) {
-        fit(sparseDataset, labels, method, alpha);
+    public void fit(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels) {
+        fit(sparseDataset, trainingLabels, this.method, this.alpha);
     }
+
+    // ---------------- Predict Methods ----------------
+
+    public int predict(int queryIndex) {
+        return getMaxProbabilityClass(predictProbability(queryIndex));
+    }
+
+    public Map<Integer, Double> predictProbability(int queryIndex) {
+        return sparse ? nb.computeProbabilities(sparsePoints.get(queryIndex))
+                      : nb.computeProbabilities(points[queryIndex]);
+    }
+
+    public int[] predictAll() {
+        int n = sparse ? sparsePoints.size() : points.length;
+        int[] preds = new int[n];
+        for (int i = 0; i < n; i++) preds[i] = predict(i);
+        return preds;
+    }
+
+    public double accuracy() {
+        if (testLabels == null) throw new IllegalStateException("No test labels available");
+
+        int correct = 0;
+        for (int i = 0; i < testLabels.length; i++) {
+            if (predict(i) == (int) testLabels[i]) correct++;
+        }
+        return (double) correct / testLabels.length;
+    }
+
+    // ---------------- Setter Methods ----------------
+
+    public void setMethod(String method) {
+        if (method == null) throw new IllegalArgumentException("Method cannot be null.");
+        this.method = method;
+        refreshNaiveBayes();
+    }
+
+    public void setAlpha(double alpha) {
+        this.alpha = alpha;
+        refreshNaiveBayes();
+    }
+
+    public void setTrainingLabels(double[] trainingLabels) {
+        if (trainingLabels == null || trainingLabels.length == 0)
+            throw new IllegalArgumentException("Training labels cannot be null or empty.");
+        if (!sparse && trainingLabels.length != dataset.length)
+            throw new IllegalArgumentException("Training labels length must match dataset length.");
+        if (sparse && trainingLabels.length != sparseDataset.size())
+            throw new IllegalArgumentException("Training labels length must match sparse dataset size.");
+
+        this.trainingLabels = trainingLabels;
+        refreshNaiveBayes();
+    }
+
+    public void setTestLabels(double[] testLabels) {
+        if (testLabels == null || testLabels.length == 0)
+            throw new IllegalArgumentException("Test labels cannot be null or empty.");
+        if (!sparse && testLabels.length != points.length)
+            throw new IllegalArgumentException("Test labels length must match points length.");
+        if (sparse && testLabels.length != sparsePoints.size())
+            throw new IllegalArgumentException("Test labels length must match sparse points size.");
+
+        this.testLabels = testLabels;
+    }
+
+    public void setPoints(double[][] points, double[] testLabels) {
+        this.points = points;
+        this.testLabels = testLabels;
+    }
+
+    public void setSparsePoints(List<Map<Integer, Double>> sparsePoints) {
+        this.sparsePoints = sparsePoints;
+    }
+
+    // ---------------- Helper Methods ----------------
 
     private int getMaxProbabilityClass(Map<Integer, Double> probabilities) {
         return probabilities.entrySet().stream()
@@ -82,103 +179,30 @@ public class NaiveBayes {
                 .orElseThrow(() -> new IllegalArgumentException("No class found"));
     }
 
-    public int predict(int queryIndex) {
-        Map<Integer, Double> probabilities = predictProbability(queryIndex);
-        return getMaxProbabilityClass(probabilities);
+    private void validateDenseInputs(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels) {
+        if (dataset == null) throw new IllegalArgumentException("Dataset cannot be null.");
+        if (points == null) throw new IllegalArgumentException("Points cannot be null.");
+        if (trainingLabels == null) throw new IllegalArgumentException("Training labels cannot be null.");
+        if (testLabels == null) throw new IllegalArgumentException("Test labels cannot be null.");
+        if (dataset.length != trainingLabels.length)
+            throw new IllegalArgumentException("Dataset length must match training labels length.");
+        if (points.length != testLabels.length)
+            throw new IllegalArgumentException("Points length must match test labels length.");
     }
 
-    public Map<Integer, Double> predictProbability(int queryIndex) {
-        if (sparse) {
-            return nb.computeProbabilities(sparsePoints.get(queryIndex));
-        } else {
-            return nb.computeProbabilities(points[queryIndex]);
-        }
+    private void validateSparseInputs(List<Map<Integer, Double>> sparseDataset, List<Map<Integer, Double>> sparsePoints,
+                                      double[] trainingLabels, double[] testLabels) {
+        if (sparseDataset == null) throw new IllegalArgumentException("Sparse dataset cannot be null.");
+        if (sparsePoints == null) throw new IllegalArgumentException("Sparse points cannot be null.");
+        if (trainingLabels == null) throw new IllegalArgumentException("Training labels cannot be null.");
+        if (testLabels == null) throw new IllegalArgumentException("Test labels cannot be null.");
     }
 
-    public int[] predictAll() {
-        int[] preds = new int[points.length];
-        for (int i = 0; i < points.length; i++)
-            preds[i] = predict(i);
-        return preds;
-    }
-
-    public double accuracy() {
-        int correct = 0;
-        for (int i = 0; i < points.length; i++) {
-            if (predict(i) == (int) points[i][points[i].length - 1])
-                correct++;
+    public void refreshNaiveBayes() {
+        if (sparse && sparseDataset != null) {
+            nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
+        } else if (!sparse && dataset != null) {
+            nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
         }
-        return (double) correct / points.length;
-    }
-
-    private double[] extractLabels(double[][] dataset) {
-        double[] labels = new double[dataset.length];
-        for (int i = 0; i < dataset.length; i++) {
-            labels[i] = dataset[i][dataset[i].length - 1];
-        }
-        return labels;
-    }
-
-    private double[] extractLabels(List<Map<Integer, Double>> sparseDataset) {
-        double[] labels = new double[sparseDataset.size()];
-        for (int i = 0; i < sparseDataset.size(); i++) {
-            labels[i] = (double) sparseDataset.get(i).get(sparseDataset.get(i).size() - 1);
-        }
-        return labels;
-    }
-    
-    public void setMethod(String method) {
-        this.method = method;
-        if (sparse) {
-            this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
-        } else {
-            this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
-        }
-    }
-    
-    public void setAlpha(double alpha) {
-        this.alpha = alpha;
-        if (sparse) {
-            this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
-        } else {
-            this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
-        }
-    }
-    
-    public void setTrainingLabels(double[] trainingLabels) {
-        this.trainingLabels = trainingLabels;
-        if (sparse) {
-            this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
-        } else {
-            this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
-        }
-    }
-    
-    public void setTestLabels(double[] testLabels) {
-        this.testLabels = testLabels;
-    }
-    
-    public void setDataset(double[][] dataset) {
-        this.dataset = dataset;
-        this.trainingLabels = extractLabels(dataset);
-        if (sparse) {
-            this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
-        } else {
-            this.nb = new AbstractNaiveBayes(dataset, trainingLabels, method, alpha);
-        }
-    }
-    
-    public void setSparseDataset(List<Map<Integer, Double>> sparseDataset) {
-        this.sparseDataset = sparseDataset;
-        this.trainingLabels = extractLabels(sparseDataset);
-        this.nb = new AbstractNaiveBayes(sparseDataset, trainingLabels, method, alpha);
-    }
-    public void setPoints(double[][] points) {
-        this.points = points;
-        this.testLabels = extractLabels(points);
-    }
-    
-    public void setSparsePoints(List<Map<Integer, Double>> sparsePoints) {
-        this.sparsePoints = sparsePoints;
     }
 }

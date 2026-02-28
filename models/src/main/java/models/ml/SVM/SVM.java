@@ -1,5 +1,7 @@
 package models.ml.SVM;
 
+import java.util.Map;
+
 /**
  * Wrapper class for Support Vector Machine (SVM).
  * Handles predictions and evaluation metrics.
@@ -9,66 +11,168 @@ package models.ml.SVM;
  */
 public class SVM {
 
-    public double[][] train;
-    public double[][] test;
-    public AbstractSVM svm;
+    public double[][] dataset;
+    public double[][] points;
+    private Map<Integer, Double>[] sparseDataset;
+    private Map<Integer, Double>[] sparsePoints;
 
-    public SVM(double[][] train, double[][] test,
+    private double[] trainingLabels;
+    private double[] testLabels;
+
+    private AbstractSVM svm;
+    private boolean sparse;
+
+    private double C;
+    private double learningRate;
+    private int epochs;
+    private String kernel;
+    private String method;
+
+    public SVM(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels,
             double C, double learningRate, int epochs,
             String kernel, String method) {
+        if (dataset == null)
+            throw new IllegalArgumentException("Dataset cannot be null.");
+        if (trainingLabels == null || trainingLabels.length == 0)
+            throw new IllegalArgumentException("Training labels cannot be null or empty.");
 
-        this.train = normalizeLabels(train);
-        this.test = normalizeLabels(test);
+        if (testLabels == null || testLabels.length == 0)
+            throw new IllegalArgumentException("Test labels cannot be null or empty.");
 
-        this.svm = new AbstractSVM(this.train, C, learningRate, epochs, kernel, method);
+        if (dataset.length == 0)
+            throw new IllegalArgumentException("Dataset cannot be empty.");
+
+        if (points == null || points.length == 0)
+            throw new IllegalArgumentException("Points cannot be null or empty.");
+
+        if (trainingLabels.length != dataset.length)
+            throw new IllegalArgumentException("Training labels length must match dataset length.");
+
+        if (testLabels.length != points.length)
+            throw new IllegalArgumentException("Test labels length must match points length.");
+
+        if (dataset[0].length == 0)
+            throw new IllegalArgumentException("Dataset must contain at least one feature.");
+        this.sparse = false;
+        this.dataset = dataset;
+        this.points = points;
+
+        this.trainingLabels = trainingLabels;
+        this.testLabels = testLabels;
+
+        normalizeLabels(trainingLabels);
+        normalizeLabels(testLabels);
+
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+        this.kernel = kernel != null ? kernel : "linearKernel";
+        this.method = method != null ? method : "linearsvc";
+
+        this.svm = new AbstractSVM(this.dataset, this.trainingLabels, C, learningRate, epochs, kernel, method);
     }
 
-    public SVM(double[][] train2, double[][] test2) {
-        this(train2, test2, 0.1, 0.01, 10, "linearKernel", "svc");
+    public SVM(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels) {
+        this(dataset, trainingLabels, points, testLabels, 1.0, 0.01, 1000, "linearKernel", "linearsvc");
+    }
+
+    public SVM(Map<Integer, Double>[] sparseDataset, double[] trainingLabels, Map<Integer, Double>[] sparsePoints,
+            double[] testLabels, int numFeatures, double C,
+            double learningRate, int epochs, String method) {
+
+        if (sparseDataset == null)
+            throw new IllegalArgumentException("Sparse dataset cannot be null.");
+        if (trainingLabels == null || trainingLabels.length == 0)
+            throw new IllegalArgumentException("Training labels cannot be null or empty.");
+
+        if (testLabels == null || testLabels.length == 0)
+            throw new IllegalArgumentException("Test labels cannot be null or empty.");
+
+        if (sparsePoints == null || sparsePoints.length == 0)
+            throw new IllegalArgumentException("Sparse points cannot be null or empty.");
+
+        if (trainingLabels.length != sparseDataset.length)
+            throw new IllegalArgumentException("Training labels length must match sparse dataset length.");
+
+        if (testLabels.length != sparsePoints.length)
+            throw new IllegalArgumentException("Test labels length must match sparse points length.");
+
+        if (numFeatures <= 0)
+            throw new IllegalArgumentException("Number of features must be positive.");
+        this.sparse = true;
+
+        this.sparseDataset = sparseDataset;
+        this.sparsePoints = sparsePoints;
+        this.trainingLabels = trainingLabels;
+        this.testLabels = testLabels;
+
+        normalizeLabels(this.trainingLabels);
+        normalizeLabels(this.testLabels);
+
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+        this.method = method != null ? method : "linearsvc";
+
+        this.svm = new AbstractSVM(sparseDataset, this.trainingLabels, numFeatures, C,
+                learningRate, epochs, this.method);
     }
 
     /** Predict label for a single query point */
     public int predict(int queryIndex) {
-        double[] x = new double[test[queryIndex].length - 1];
-        System.arraycopy(test[queryIndex], 0, x, 0, x.length);
-
-        if (x.length != svm.getWeights().length) {
-            throw new IllegalStateException("Feature size mismatch");
+        if (!sparse) {
+            if (points == null || points.length == 0)
+                throw new IllegalStateException("Points not initialized.");
+            if (queryIndex < 0 || queryIndex >= points.length)
+                throw new IllegalArgumentException("Query index out of bounds.");
+        } else {
+            if (sparsePoints == null || sparsePoints.length == 0)
+                throw new IllegalStateException("Sparse points not initialized.");
+            if (queryIndex < 0 || queryIndex >= sparsePoints.length)
+                throw new IllegalArgumentException("Query index out of bounds.");
         }
-
-        return svm.predict(x);
+        if (!sparse) {
+            return svm.predict(points[queryIndex]);
+        } else {
+            return svm.predictSparse(sparsePoints[queryIndex]);
+        }
     }
 
     /** Predict labels for all query points */
     public int[] predictAll() {
-        int[] preds = new int[test.length];
-        for (int i = 0; i < test.length; i++) {
+        int n = sparse ? sparsePoints.length : points.length;
+        int[] preds = new int[n];
+        for (int i = 0; i < n; i++) {
             preds[i] = predict(i);
         }
         return preds;
     }
 
-    /** Compute accuracy on test points */
+    /** Compute accuracy on points points */
     public double accuracy() {
+        if (testLabels == null || testLabels.length == 0)
+            throw new IllegalStateException("Test labels cannot be null or empty.");
+
+        if (!sparse && testLabels.length != points.length)
+            throw new IllegalStateException("Test labels length must match points length.");
+
+        if (sparse && testLabels.length != sparsePoints.length)
+            throw new IllegalStateException("Test labels length must match sparse points length.");
         int correct = 0;
-        for (int i = 0; i < test.length; i++) {
-            int predicted = predict(i);
-            int actual = (int) test[i][test[i].length - 1];
-            if (predicted == actual)
+        int n = testLabels.length;
+        for (int i = 0; i < n; i++) {
+            if (predict(i) == (int) testLabels[i])
                 correct++;
         }
-        return (double) correct / test.length;
+        return (double) correct / n;
     }
 
-    private double[][] normalizeLabels(double[][] data) {
-        double[][] normalized = new double[data.length][data[0].length];
+    private void normalizeLabels(double[] labels) {
+        if (labels == null)
+            return;
 
-        for (int i = 0; i < data.length; i++) {
-            System.arraycopy(data[i], 0, normalized[i], 0, data[i].length);
-
-            double label = normalized[i][normalized[i].length - 1];
-            normalized[i][normalized[i].length - 1] = (label == 0) ? -1 : 1;
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = (labels[i] == 0) ? -1 : 1;
         }
-        return normalized;
     }
 }

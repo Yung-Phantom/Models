@@ -1,5 +1,7 @@
 package models.ml.SVM;
 
+import java.util.Map;
+
 /**
  * Abstract class for Support Vector Machine (SVM).
  * Implements linear SVM using hinge loss and gradient descent.
@@ -14,6 +16,12 @@ public class AbstractSVM {
     protected int numSamples;
     protected int numFeatures;
 
+    protected Map<Integer, Double>[] sparseDataset;
+    protected double[] sparseLabels;
+
+    protected double[] labels;
+    protected boolean sparse;
+
     protected double[] weights;
     protected double bias;
     protected double C;
@@ -24,40 +32,43 @@ public class AbstractSVM {
 
     protected double[] alpha;
 
-    public AbstractSVM(double[][] dataset) {
-        this(dataset, 0.1, 0.01, 10, "linearKernel", "linearsvc");
+    public AbstractSVM(double[][] dataset, double[] labels) {
+        this(dataset,labels , 0.1, 0.01, 10, "linearKernel", "linearsvc");
     }
 
-    public AbstractSVM(double[][] dataset, int epochs, String kernel, String method) {
-        this(dataset, 0.1, 0.01, epochs, kernel, method);
-    }
-
-    public AbstractSVM(double[][] dataset, int epochs) {
-        this(dataset, 0.1, 0.01, epochs, "linearKernel", "linearsvc");
-    }
-
-    public AbstractSVM(double[][] dataset, String kernel, String method) {
-        this(dataset, 0.1, 0.01, 10, kernel, method);
-    }
-
-    public AbstractSVM(double[][] dataset, double C, double learningRate, String kernel, String method) {
-        this(dataset, C, learningRate, 10, kernel, method);
-    }
-
-    public AbstractSVM(double[][] dataset, double C, double learningRate) {
-        this(dataset, C, learningRate, 10, "linearKernel", "linearsvc");
-    }
-
-    public AbstractSVM(double[][] dataset, double C, double learningRate, int epochs) {
-        this(dataset, C, learningRate, epochs, "linearKernel", "linearsvc");
-    }
-
-    public AbstractSVM(double[][] dataset, double C, double learningRate, int epochs,
+    public AbstractSVM(double[][] dataset,
+            double[] labels, double C, double learningRate, int epochs,
             String kernel, String method) {
+        if (dataset == null || dataset.length == 0)
+            throw new IllegalArgumentException("Dataset cannot be null or empty.");
 
+        if (labels == null || labels.length == 0)
+            throw new IllegalArgumentException("Labels cannot be null or empty.");
+
+        if (dataset.length != labels.length)
+            throw new IllegalArgumentException("Dataset length must match labels length.");
+
+        if (dataset[0] == null || dataset[0].length == 0)
+            throw new IllegalArgumentException("Dataset must contain at least one feature.");
+
+        if (C <= 0)
+            throw new IllegalArgumentException("C must be positive.");
+
+        if (learningRate <= 0)
+            throw new IllegalArgumentException("Learning rate must be positive.");
+
+        if (epochs <= 0)
+            throw new IllegalArgumentException("Epochs must be positive.");
+
+        if (kernel == null)
+            throw new IllegalArgumentException("Kernel cannot be null.");
+
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null.");
         this.dataset = dataset;
+        this.labels = labels;
         this.numSamples = dataset.length;
-        this.numFeatures = dataset[0].length - 1;
+        this.numFeatures = dataset[0].length;
 
         this.C = C;
         this.learningRate = learningRate;
@@ -68,7 +79,6 @@ public class AbstractSVM {
         this.weights = new double[numFeatures];
         this.bias = 0.0;
         this.alpha = new double[numSamples];
-
         switch (this.method) {
             case "svc":
                 computeSVC();
@@ -81,12 +91,55 @@ public class AbstractSVM {
         }
     }
 
+    public AbstractSVM(Map<Integer, Double>[] sparseDataset, double[] labels, int numFeatures, double C,
+            double learningRate, int epochs, String method) {
+                if (sparseDataset == null || sparseDataset.length == 0)
+            throw new IllegalArgumentException("Sparse dataset cannot be null or empty.");
+
+        if (labels == null || labels.length == 0)
+            throw new IllegalArgumentException("Labels cannot be null or empty.");
+
+        if (sparseDataset.length != labels.length)
+            throw new IllegalArgumentException("Sparse dataset length must match labels length.");
+
+        if (numFeatures <= 0)
+            throw new IllegalArgumentException("Number of features must be positive.");
+
+        if (C <= 0)
+            throw new IllegalArgumentException("C must be positive.");
+
+        if (learningRate <= 0)
+            throw new IllegalArgumentException("Learning rate must be positive.");
+
+        if (epochs <= 0)
+            throw new IllegalArgumentException("Epochs must be positive.");
+
+        if (method == null)
+            throw new IllegalArgumentException("Method cannot be null.");
+
+        this.sparseDataset = sparseDataset;
+        this.sparseLabels = labels;
+        this.numSamples = labels.length;
+        this.numFeatures = numFeatures;
+
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
+        // this.kernel = kernel.toLowerCase();
+        this.method = method.toLowerCase();
+
+        this.weights = new double[numFeatures];
+        this.bias = 0.0;
+        this.alpha = new double[numSamples];
+        computeLinearSVCSparse();
+    }
+
     public void computeLinearSVC() {
         for (int epoch = 0; epoch < epochs; epoch++) {
             for (int i = 0; i < numSamples; i++) {
 
                 double[] x = getX(i);
-                double y = dataset[i][numFeatures];
+                double y = labels[i];
 
                 double fx = linearDecision(weights, x, bias);
 
@@ -99,6 +152,28 @@ public class AbstractSVM {
                     for (int j = 0; j < weights.length; j++) {
                         weights[j] -= learningRate * weights[j];
                     }
+                }
+            }
+        }
+    }
+
+    public void computeLinearSVCSparse() {
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            for (int i = 0; i < numSamples; i++) {
+                Map<Integer, Double> x = sparseDataset[i];
+                double y = sparseLabels[i];
+                double fx = linearDecisionSparse(weights, x, bias);
+
+                if (y * fx < 1) {
+                    for (Map.Entry<Integer, Double> entry : x.entrySet()) {
+                        int idx = entry.getKey();
+                        double val = entry.getValue();
+                        weights[idx] -= learningRate * (weights[idx] - C * y * val);
+                    }
+                    bias += learningRate * C * y;
+                } else {
+                    for (int j = 0; j < weights.length; j++)
+                        weights[j] -= learningRate * weights[j];
                 }
             }
         }
@@ -119,7 +194,7 @@ public class AbstractSVM {
                     double yj = dataset[j][numFeatures];
                     double Ej = decisionDual(j) - yj;
 
-                    //double aiOld = alpha[i];
+                    // double aiOld = alpha[i];
                     double ajOld = alpha[j];
 
                     double kii = kernel(getX(i), getX(i));
@@ -174,6 +249,12 @@ public class AbstractSVM {
         return sum + b;
     }
 
+    protected double linearDecisionSparse(double[] w, Map<Integer, Double> x, double b) {
+        double sum = 0.0;
+        for (Map.Entry<Integer, Double> entry : x.entrySet())
+            sum += w[entry.getKey()] * entry.getValue();
+        return sum + b;
+    }
     protected double kernel(double[] x, double z[]) {
         switch (kernel) {
             case "polynomial":
@@ -208,8 +289,22 @@ public class AbstractSVM {
     public double predictScore(double[] row) {
         return linearDecision(weights, row, bias);
     }
+    
+    public int predictSparse(Map<Integer, Double> row) {
+        if (row == null)
+            throw new IllegalArgumentException("Sparse row cannot be null.");
+
+        if (row.isEmpty())
+            throw new IllegalArgumentException("Sparse row cannot be empty.");
+        return linearDecisionSparse(weights, row, bias) >= 0 ? 1 : -1;
+    }
 
     public int predict(double[] row) {
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null.");
+
+        if (row.length != numFeatures)
+            throw new IllegalArgumentException("Row must have exactly " + numFeatures + " features.");
         return predictScore(row) >= 0 ? 1 : -1;
     }
 

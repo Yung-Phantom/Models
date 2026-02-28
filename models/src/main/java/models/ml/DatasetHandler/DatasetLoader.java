@@ -101,7 +101,7 @@ public class DatasetLoader {
 
         double[][] data = dataset.data;
         int n = data.length;
-        int trainSize = (int) (n * trainPercent / 100.0);
+        int trainSize = (trainPercent <= 1.0) ? (int) (n * trainPercent) : (int) (n * trainPercent / 100.0);
 
         List<double[]> shuffled = new ArrayList<>(Arrays.asList(data));
         Collections.shuffle(shuffled, new Random());
@@ -133,7 +133,7 @@ public class DatasetLoader {
 
         for (List<double[]> rows : byLabel.values()) {
             Collections.shuffle(rows, rand);
-            int trainSize = (int) (rows.size() * trainPercent / 100.0);
+            int trainSize = (trainPercent <= 1.0) ? (int) (rows.size() * trainPercent) : (int) (rows.size() * trainPercent / 100.0);
 
             train.addAll(rows.subList(0, trainSize));
             test.addAll(rows.subList(trainSize, rows.size()));
@@ -151,7 +151,7 @@ public class DatasetLoader {
 
         double[][] data = dataset.data;
         int n = data.length;
-        int trainSize = (int) (n * trainPercent / 100.0);
+        int trainSize = (trainPercent <= 1.0) ? (int) (n * trainPercent) : (int) (n * trainPercent / 100.0);
 
         double[][] train = Arrays.copyOfRange(data, 0, trainSize);
         double[][] test = Arrays.copyOfRange(data, trainSize, n);
@@ -262,7 +262,7 @@ public class DatasetLoader {
         } catch (SQLException e) {
             throw e;
         }
-        
+
     }
 
     public static Dataset parseTable(List<String[]> rows, DatasetConfig config, String labelColumn) {
