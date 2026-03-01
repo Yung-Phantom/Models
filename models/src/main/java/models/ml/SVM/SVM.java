@@ -13,20 +13,20 @@ public class SVM {
 
     public double[][] dataset;
     public double[][] points;
-    private Map<Integer, Double>[] sparseDataset;
-    private Map<Integer, Double>[] sparsePoints;
+    public Map<Integer, Double>[] sparseDataset;
+    public Map<Integer, Double>[] sparsePoints;
 
-    private double[] trainingLabels;
-    private double[] testLabels;
+    public double[] trainingLabels;
+    public double[] testLabels;
 
-    private AbstractSVM svm;
-    private boolean sparse;
+    public AbstractSVM svm;
+    public boolean sparse;
 
-    private double C;
-    private double learningRate;
-    private int epochs;
-    private String kernel;
-    private String method;
+    public double C;
+    public double learningRate;
+    public int epochs;
+    public String kernel;
+    public String method;
 
     public SVM(double[][] dataset, double[] trainingLabels, double[][] points, double[] testLabels,
             double C, double learningRate, int epochs,

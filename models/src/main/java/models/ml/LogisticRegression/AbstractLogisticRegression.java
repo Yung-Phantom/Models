@@ -435,7 +435,7 @@ public class AbstractLogisticRegression {
             }
             case "ordinal":
             case "o": {
-                predictOrdinalClass(row);
+                return predictOrdinalClass(row);
             }
 
             default:
