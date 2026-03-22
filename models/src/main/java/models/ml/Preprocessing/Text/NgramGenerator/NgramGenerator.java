@@ -1,28 +1,49 @@
 package models.ml.Preprocessing.Text.NgramGenerator;
 
 import java.util.List;
+import java.util.Set;
 
 public class NgramGenerator {
 
-    private final AbstractNgramGenerator abstractNgramGenerator;
+    private AbstractNgramGenerator generator;
 
+    // ---------------- Constructors ----------------
     public NgramGenerator(int n) {
-        this.abstractNgramGenerator = new AbstractNgramGenerator(n);
+        this.generator = new AbstractNgramGenerator(n);
     }
 
-    public NgramGenerator(int n, String tokenPattern) {
-        this.abstractNgramGenerator = new AbstractNgramGenerator(n, tokenPattern);
+    public NgramGenerator(int minN, int maxN) {
+        this.generator = new AbstractNgramGenerator(minN, maxN);
     }
 
+    public NgramGenerator(int minN, int maxN, String tokenPattern, boolean toLowerCase, Set<String> stopwords) {
+        this.generator = new AbstractNgramGenerator(minN, maxN, tokenPattern, toLowerCase, stopwords);
+    }
+
+    // ---------------- Single doc ----------------
     public List<String> generate(String document) {
-        return abstractNgramGenerator.generate(document);
+        return generator.generate(document);
     }
 
+    // ---------------- Corpus ----------------
     public List<List<String>> generate(List<String> corpus) {
-        return abstractNgramGenerator.generate(corpus);
+        return generator.generate(corpus);
     }
 
-    public int getN() {
-        return abstractNgramGenerator.getN();
+    // ---------------- Getters ----------------
+    public int getMinN() {
+        return generator.getMinN();
+    }
+
+    public int getMaxN() {
+        return generator.getMaxN();
+    }
+
+    public boolean isToLowerCase() {
+        return generator.isToLowerCase();
+    }
+
+    public Set<String> getStopwords() {
+        return generator.getStopwords();
     }
 }
