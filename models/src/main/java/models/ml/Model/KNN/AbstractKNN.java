@@ -1,4 +1,4 @@
-package models.ml.KNN;
+package models.ml.Model.KNN;
 
 import java.util.*;
 
