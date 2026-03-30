@@ -1,4 +1,4 @@
-package models.ml.Model.KNN;
+package models.ml.Model.NaiveBayes;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -8,7 +8,6 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,75 +15,73 @@ import models.ml.DatasetHandler.DatasetLoader;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.Model.Metrics;
 import models.ml.Model.Model;
-import models.ml.Model.KNN.AbstractKNN;
+import models.ml.Model.NaiveBayes.AbstractNaiveBayes;
 
-public class KNN extends Model {
-    public enum KNNMETHODS {
-        EUCLIDEAN, MANHATTAN, MINKOWSKI, COSINE,
+public class NaiveBayes extends Model {
+    public enum NBMETHODS {
+        GAUSSIAN, MULTINOMIAL, BERNOULLI
     }
 
-    private static final int DEFAULT_K = 3;
-    private static final int DEFAULT_P = 2;
-    private static final String DEFAULT_DENSE_METHOD = "euclidean";
-    private static final String DEFAULT_SPARSE_METHOD = "cosine";
-
+    private static final String DEFAULT_DENSE_METHOD = "gaussian";
+    private static final String DEFAULT_SPARSE_METHOD = "multinomial";
+    private static final double DEFAULT_ALPHA = 1.0;
     public String method;
-    private int k;
-    public int p;
-    private AbstractKNN knn;
+    public double alpha;
+    private AbstractNaiveBayes nb;
 
-    public KNN() {
+    public NaiveBayes() {
     }
 
-    public KNN(double[][] trainingDataset, int k, int p, String method) {
+    public NaiveBayes(double[][] trainingDataset, String method, double alpha) {
         super(trainingDataset);
-        initDenseParams(k, p, method);
-        initDenseKNN();
+        initDenseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(double[][] trainingDataset, double[] trainingLabels, int k, int p, String method) {
+    public NaiveBayes(double[][] trainingDataset, double[] trainingLabels, String method, double alpha) {
         super(trainingDataset, trainingLabels);
-        initDenseParams(k, p, method);
-        initDenseKNN();
+        initDenseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(double[][] trainingDataset, double[][] testDataset, int k, int p, String method) {
+    public NaiveBayes(double[][] trainingDataset, double[][] testDataset, String method, double alpha) {
         super(trainingDataset, testDataset);
-        initDenseParams(k, p, method);
-        initDenseKNN();
+        initDenseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels, int k,
-            int p, String method) {
+    public NaiveBayes(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
+            String method, double alpha) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initDenseParams(k, p, method);
-        initDenseKNN();
+        initDenseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(List<Map<Integer, Double>> trainingDataset, int k, int p, String method) {
+    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, String method, double alpha) {
         super(trainingDataset);
-        initSparseParams(k, p, method);
-        initSparseKNN();
+        initSparseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, int k, int p, String method) {
+    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method,
+            double alpha) {
         super(trainingDataset, trainingLabels);
-        initSparseParams(k, p, method);
-        initSparseKNN();
+        initSparseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, int k, int p,
-            String method) {
+    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset,
+            String method, double alpha) {
         super(trainingDataset, testDataset);
-        initSparseParams(k, p, method);
-        initSparseKNN();
+        initSparseParams(method, alpha);
+        initNB();
     }
 
-    public KNN(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, int k, int p, String method) {
+    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> testDataset, double[] testLabels, String method, double alpha) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initSparseParams(k, p, method);
-        initSparseKNN();
+        initSparseParams(method, alpha);
+        initNB();
     }
 
     @Override
@@ -95,13 +92,12 @@ public class KNN extends Model {
         this.denseTrainingDataset = this.scaler.extractFeatures(trainingDataset);
         this.trainingLabels = this.scaler.extractLabels(trainingDataset);
         initDenseParams();
-        initDenseKNN();
+        initNB();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset);
     }
 
@@ -110,9 +106,8 @@ public class KNN extends Model {
         this.fit(trainingDataset);
     }
 
-    public void fit(double[][] trainingDataset, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset);
     }
@@ -128,13 +123,12 @@ public class KNN extends Model {
         this.denseTrainingDataset = trainingDataset;
         this.trainingLabels = trainingLabels;
         initDenseParams();
-        initDenseKNN();
+        initNB();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double[] trainingLabels, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double[] trainingLabels, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, trainingLabels);
     }
 
@@ -143,9 +137,8 @@ public class KNN extends Model {
         this.fit(trainingDataset, trainingLabels);
     }
 
-    public void fit(double[][] trainingDataset, double[] trainingLabels, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double[] trainingLabels, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, trainingLabels);
     }
@@ -163,13 +156,12 @@ public class KNN extends Model {
         this.trainingLabels = this.scaler.extractLabels(trainingDataset);
         this.testLabels = this.scaler.extractLabels(testDataset);
         initDenseParams();
-        initDenseKNN();
+        initNB();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double[][] testDataset, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double[][] testDataset, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, testDataset);
     }
 
@@ -178,9 +170,8 @@ public class KNN extends Model {
         this.fit(trainingDataset, testDataset);
     }
 
-    public void fit(double[][] trainingDataset, double[][] testDataset, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+    public void fit(double[][] trainingDataset, double[][] testDataset, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, testDataset);
     }
@@ -204,14 +195,13 @@ public class KNN extends Model {
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
         initDenseParams();
-        initDenseKNN();
+        initNB();
         this.sparse = false;
     }
 
     public void fit(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            int k, int p) {
-        this.k = k;
-        this.p = p;
+            double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
 
@@ -222,9 +212,8 @@ public class KNN extends Model {
     }
 
     public void fit(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+            double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
@@ -235,14 +224,13 @@ public class KNN extends Model {
             throw new IllegalArgumentException("trainingDataset cannot be empty");
         }
         this.sparseTrainingDataset = trainingDataset;
-        initSparseParams();
-        initSparseKNN();
+            initSparseParams();
+            initNB();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(List<Map<Integer, Double>> trainingDataset, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset);
     }
 
@@ -251,9 +239,8 @@ public class KNN extends Model {
         this.fit(trainingDataset);
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+    public void fit(List<Map<Integer, Double>> trainingDataset, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset);
     }
@@ -266,13 +253,12 @@ public class KNN extends Model {
         this.sparseTrainingDataset = trainingDataset;
         this.trainingLabels = trainingLabels;
         initSparseParams();
-        initSparseKNN();
+        initNB();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, trainingLabels);
     }
 
@@ -281,9 +267,8 @@ public class KNN extends Model {
         this.fit(trainingDataset, trainingLabels);
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, trainingLabels);
     }
@@ -296,13 +281,12 @@ public class KNN extends Model {
         this.sparseTrainingDataset = trainingDataset;
         this.sparseTestDataset = testDataset;
         initSparseParams();
-        initSparseKNN();
+        initNB();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, int k, int p) {
-        this.k = k;
-        this.p = p;
+    public void fit(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, testDataset);
     }
 
@@ -312,9 +296,8 @@ public class KNN extends Model {
     }
 
     public void fit(List<Map<Integer, Double>> trainingDataset,
-            List<Map<Integer, Double>> testDataset, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+            List<Map<Integer, Double>> testDataset, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, testDataset);
     }
@@ -330,27 +313,25 @@ public class KNN extends Model {
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
         initSparseParams();
-        initSparseKNN();
+        initNB();
         this.sparse = true;
     }
 
     public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, int k, int p) {
-        this.k = k;
-        this.p = p;
+            List<Map<Integer, Double>> testDataset, double[] testLabels, double alpha) {
+        this.alpha = alpha;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
 
     public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, String method) {
+            List<Map<Integer, Double>> testDataset, double[] testLabels, double alpha, String method) {
+        this.alpha = alpha;
         this.method = method;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
 
     public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, int k, int p, String method) {
-        this.k = k;
-        this.p = p;
+            List<Map<Integer, Double>> testDataset, double[] testLabels, String method) {
         this.method = method;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
@@ -374,52 +355,59 @@ public class KNN extends Model {
 
         this.denseTestDataset = this.scaler.extractFeatures(splitData.test);
         this.testLabels = this.scaler.extractLabels(splitData.test);
-
         initDenseParams();
-        initDenseKNN();
+        initNB();
         this.sparse = false;
     }
 
     @Override
     public int[] predictLabels() {
-        int n = this.sparse ? this.sparseTestDataset.size() : this.denseTestDataset.length;
+        if (nb == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
+
+        // Determine which dataset to predict on (Test set)
+        int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
         int[] predictions = new int[n];
+
         for (int i = 0; i < n; i++) {
-            predictions[i] = majority(i);
+            Map<Integer, Double> probs = sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
+                    : nb.computeProbabilities(denseTestDataset[i]);
+
+            predictions[i] = getMaxProbabilityClass(probs);
         }
         return predictions;
     }
 
     @Override
     public List<Map<Integer, Double>> predictProbabilities() {
-        int n = this.sparse ? this.sparseTestDataset.size() : this.denseTestDataset.length;
+        if (nb == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
 
-        List<Map<Integer, Double>> probabilities = new ArrayList<>();
+        List<Map<Integer, Double>> allProbabilities = new ArrayList<>();
+        int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
+
         for (int i = 0; i < n; i++) {
-            probabilities.add(probability(i));
+            allProbabilities.add(sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
+                    : nb.computeProbabilities(denseTestDataset[i]));
         }
-        return probabilities;
+        return allProbabilities;
     }
 
     @Override
     public int[][] predictMultiLabel(double threshold) {
-        int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
-        int[][] predictions = new int[n][];
+        List<Map<Integer, Double>> probs = predictProbabilities();
+        int[][] multiLabels = new int[probs.size()][];
 
-        for (int i = 0; i < n; i++) {
-            Map<Integer, Double> probMap = probability(i);
-
-            List<Integer> labels = new ArrayList<>();
-            for (var e : probMap.entrySet()) {
-                if (e.getValue() >= threshold) {
-                    labels.add(e.getKey());
-                }
-            }
-            predictions[i] = labels.stream().mapToInt(Integer::intValue).toArray();
+        for (int i = 0; i < probs.size(); i++) {
+            multiLabels[i] = probs.get(i).entrySet().stream()
+                    .filter(entry -> entry.getValue() >= threshold)
+                    .mapToInt(Map.Entry::getKey)
+                    .toArray();
         }
-        return predictions;
+        return multiLabels;
     }
 
+    @Override
     public Map<String, Double> evaluate(double[][] dataset, double[] labels, String[] metrics) {
         if (dataset == null || labels == null || dataset.length != labels.length) {
             throw new IllegalArgumentException("Dataset and labels must match in length.");
@@ -475,8 +463,7 @@ public class KNN extends Model {
     public void save(String filename) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
             // Save core parameters
-            oos.writeObject(this.k);
-            oos.writeObject(this.p);
+            oos.writeObject(this.alpha);
             oos.writeObject(this.method);
             oos.writeObject(this.sparse);
 
@@ -491,7 +478,7 @@ public class KNN extends Model {
             oos.writeObject(this.trainingLabels);
             oos.writeObject(this.testLabels);
         } catch (IOException e) {
-            throw new RuntimeException("Error saving KNN model: " + e.getMessage(), e);
+            throw new RuntimeException("Error saving Naive Bayes model: " + e.getMessage(), e);
         }
     }
 
@@ -500,8 +487,7 @@ public class KNN extends Model {
     public void load(String filename) {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             // Load core parameters
-            this.k = (int) ois.readObject();
-            this.p = (int) ois.readObject();
+            this.alpha = (double) ois.readObject();
             this.method = (String) ois.readObject();
             this.sparse = (boolean) ois.readObject();
 
@@ -518,7 +504,7 @@ public class KNN extends Model {
 
             refresh();
         } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException("Error loading KNN model: " + e.getMessage(), e);
+            throw new RuntimeException("Error loading Naive Bayes model: " + e.getMessage(), e);
         }
     }
 
@@ -549,7 +535,7 @@ public class KNN extends Model {
         this.trainingLabels = mergedLabels;
         this.sparse = false;
 
-        refresh(); // rebuild knn index
+        refresh();
     }
 
     @Override
@@ -584,7 +570,7 @@ public class KNN extends Model {
 
     @Override
     public String getModelType() {
-        return "KNN";
+        return "Naive Bayes";
     }
 
     @Override
@@ -595,102 +581,50 @@ public class KNN extends Model {
     @Override
     public void refresh() {
         if (!sparse && denseTrainingDataset != null) {
-            this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p);
+            this.nb = new AbstractNaiveBayes(this.denseTrainingDataset, this.trainingLabels, this.method, this.alpha);
         } else if (sparse && sparseTrainingDataset != null) {
-            this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p);
+            this.nb = new AbstractNaiveBayes(this.sparseTrainingDataset, this.trainingLabels, this.method, this.alpha);
         } else {
             throw new IllegalArgumentException("Dataset cannot be null.");
         }
     }
 
-    // initialization helpers
-    private void initDenseParams(int k, int p, String method) {
-        this.k = (k > 0) ? k : DEFAULT_K;
-        this.p = (p > 0) ? p : DEFAULT_P;
-        this.method = (method != null && !method.isBlank()) ? method.trim().toLowerCase() : DEFAULT_DENSE_METHOD;
+    private void initDenseParams(String method, double alpha) {
+        this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
+        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.sparse = false;
     }
 
+    private void initSparseParams(String method, double alpha) {
+        this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
+        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.sparse = true;
+    }
     private void initDenseParams() {
-        this.k = (k > 0) ? k : DEFAULT_K;
-        this.p = (p > 0) ? p : DEFAULT_P;
-        this.method = (method != null && !method.isBlank()) ? method.trim().toLowerCase() : DEFAULT_DENSE_METHOD;
-    }
-
-    private void initSparseParams(int k, int p, String method) {
-        this.k = (k > 0) ? k : DEFAULT_K;
-        this.p = (p > 0) ? p : DEFAULT_P;
-        this.method = (method != null && !method.isBlank()) ? method.trim().toLowerCase() : DEFAULT_SPARSE_METHOD;
+        this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
+        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.sparse = false;
     }
 
     private void initSparseParams() {
-        this.k = (k > 0) ? k : DEFAULT_K;
-        this.p = (p > 0) ? p : DEFAULT_P;
-        this.method = (method != null && !method.isBlank()) ? method.trim().toLowerCase() : DEFAULT_SPARSE_METHOD;
+        this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
+        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.sparse = true;
     }
 
-    private void initDenseKNN() {
-        this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p);
-    }
-
-    private void initSparseKNN() {
-        this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p);
-    }
-
-    public LinkedHashMap<Integer, Double> getNeighboursWithDistance(int queryIndex) {
-        int n = sparse ? sparseTrainingDataset.size() : denseTrainingDataset.length;
-        if (queryIndex < 0 || queryIndex >= n) {
-            throw new IndexOutOfBoundsException("Query index out of bounds.");
+    private void initNB() {
+        if (!sparse && denseTrainingDataset != null) {
+            this.nb = new AbstractNaiveBayes(this.denseTrainingDataset, this.trainingLabels, this.method, this.alpha);
+        } else if (sparse && sparseTrainingDataset != null) {
+            this.nb = new AbstractNaiveBayes(this.sparseTrainingDataset, this.trainingLabels, this.method, this.alpha);
         }
-        Map<Integer, Double> distances = new HashMap<>();
-
-        for (int i = 0; i < n; i++) {
-            double d;
-            if (sparse) {
-                d = knn.distance(sparseTestDataset.get(queryIndex), sparseTrainingDataset.get(i));
-            } else {
-                d = knn.distance(denseTestDataset[queryIndex], denseTrainingDataset[i]);
-            }
-            distances.put(i, d);
-        }
-
-        return distances.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByValue())
-                .limit(k)
-                .collect(LinkedHashMap::new,
-                        (m, e) -> m.put(e.getKey(), e.getValue()),
-                        LinkedHashMap::putAll);
     }
 
-    public int majority(int queryIndex) {
-        Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
-        Map<Integer, Integer> counts = new HashMap<>();
-
-        for (int idx : neighbours.keySet()) {
-            int label = (int) trainingLabels[idx];
-            counts.put(label, counts.getOrDefault(label, 0) + 1);
-        }
-
-        return counts.entrySet().stream()
+    private int getMaxProbabilityClass(Map<Integer, Double> probabilities) {
+        return probabilities.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
-                .get()
-                .getKey();
-    }
-
-    public Map<Integer, Double> probability(int queryIndex) {
-        Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
-        Map<Integer, Integer> counts = new HashMap<>();
-
-        for (int idx : neighbours.keySet()) {
-            int label = (int) trainingLabels[idx];
-            counts.put(label, counts.getOrDefault(label, 0) + 1);
-        }
-
-        Map<Integer, Double> probs = new HashMap<>();
-        for (var e : counts.entrySet()) {
-            probs.put(e.getKey(), e.getValue() / (double) k);
-        }
-        return probs;
+                .map(Map.Entry::getKey)
+                .orElseThrow(() -> new RuntimeException("Probability map is empty"));
     }
 
     private Map<String, Double> calculateMetrics(int[] predictions, double[] labels, String[] metrics) {
