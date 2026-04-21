@@ -1,5 +1,7 @@
-package models.ml.SVM;
+package models.ml.Model.SVM;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,8 +18,7 @@ public class AbstractSVM {
     protected int numSamples;
     protected int numFeatures;
 
-    protected Map<Integer, Double>[] sparseDataset;
-    protected double[] sparseLabels;
+    protected List<Map<Integer, Double>> sparseDataset;
 
     protected double[] labels;
     protected boolean sparse;
@@ -32,13 +33,17 @@ public class AbstractSVM {
 
     protected double[] alpha;
 
-    public AbstractSVM(double[][] dataset, double[] labels) {
-        this(dataset,labels , 0.1, 0.01, 10, "linearKernel", "linearsvc");
-    }
+    private boolean normalizedLabels = false;
+    private boolean originalZeroOne = false;
+
+    protected double gamma;
+    protected int degree;
+    protected double coef0;
 
     public AbstractSVM(double[][] dataset,
             double[] labels, double C, double learningRate, int epochs,
-            String kernel, String method) {
+            String kernel, String method, double gamma, int degree, double coef0) {
+        this.sparse = false;
         if (dataset == null || dataset.length == 0)
             throw new IllegalArgumentException("Dataset cannot be null or empty.");
 
@@ -65,8 +70,14 @@ public class AbstractSVM {
 
         if (method == null)
             throw new IllegalArgumentException("Method cannot be null.");
+        if (gamma <= 0)
+            throw new IllegalArgumentException("Gamma must be positive.");
+        if (degree <= 0)
+            throw new IllegalArgumentException("Degree must be positive.");
+        if (coef0 < 0)
+            throw new IllegalArgumentException("Coef0 must be non-negative.");
         this.dataset = dataset;
-        this.labels = labels;
+        this.labels = normalizeLabels(labels);
         this.numSamples = dataset.length;
         this.numFeatures = dataset[0].length;
 
@@ -79,6 +90,10 @@ public class AbstractSVM {
         this.weights = new double[numFeatures];
         this.bias = 0.0;
         this.alpha = new double[numSamples];
+
+        this.gamma = gamma;
+        this.degree = degree;
+        this.coef0 = coef0;
         switch (this.method) {
             case "svc":
                 computeSVC();
@@ -91,19 +106,17 @@ public class AbstractSVM {
         }
     }
 
-    public AbstractSVM(Map<Integer, Double>[] sparseDataset, double[] labels, int numFeatures, double C,
-            double learningRate, int epochs, String method) {
-                if (sparseDataset == null || sparseDataset.length == 0)
+    public AbstractSVM(List<Map<Integer, Double>> sparseDataset, double[] labels, double C,
+            double learningRate, int epochs, String kernel, String method, double gamma, int degree, double coef0) {
+        this.sparse = true;
+        if (sparseDataset == null || sparseDataset.size() == 0)
             throw new IllegalArgumentException("Sparse dataset cannot be null or empty.");
 
         if (labels == null || labels.length == 0)
             throw new IllegalArgumentException("Labels cannot be null or empty.");
 
-        if (sparseDataset.length != labels.length)
+        if (sparseDataset.size() != labels.length)
             throw new IllegalArgumentException("Sparse dataset length must match labels length.");
-
-        if (numFeatures <= 0)
-            throw new IllegalArgumentException("Number of features must be positive.");
 
         if (C <= 0)
             throw new IllegalArgumentException("C must be positive.");
@@ -118,109 +131,135 @@ public class AbstractSVM {
             throw new IllegalArgumentException("Method cannot be null.");
 
         this.sparseDataset = sparseDataset;
-        this.sparseLabels = labels;
+        this.labels = normalizeLabels(labels);
         this.numSamples = labels.length;
-        this.numFeatures = numFeatures;
+        this.numFeatures = sparseDataset.stream()
+                .flatMap(m -> m.keySet().stream())
+                .max(Integer::compare)
+                .orElseThrow(() -> new IllegalArgumentException("Sparse dataset must contain features"))
+                + 1;
 
         this.C = C;
         this.learningRate = learningRate;
         this.epochs = epochs;
-        // this.kernel = kernel.toLowerCase();
+        this.kernel = kernel.toLowerCase();
         this.method = method.toLowerCase();
 
         this.weights = new double[numFeatures];
         this.bias = 0.0;
         this.alpha = new double[numSamples];
-        computeLinearSVCSparse();
-    }
 
-    public void computeLinearSVC() {
-        for (int epoch = 0; epoch < epochs; epoch++) {
-            for (int i = 0; i < numSamples; i++) {
-
-                double[] x = getX(i);
-                double y = labels[i];
-
-                double fx = linearDecision(weights, x, bias);
-
-                if (y * fx < 1) {
-                    for (int j = 0; j < weights.length; j++) {
-                        weights[j] -= learningRate * (weights[j] - C * y * x[j]);
-                    }
-                    bias += learningRate * C * y;
-                } else {
-                    for (int j = 0; j < weights.length; j++) {
-                        weights[j] -= learningRate * weights[j];
-                    }
-                }
-            }
+        this.gamma = gamma;
+        this.degree = degree;
+        this.coef0 = coef0;
+        switch (this.method) {
+            case "svc":
+                computeSVC();
+                break;
+            case "linearsvc":
+                computeLinearSVC();
+            default:
+                System.out.println("Method not supported: " + method);
         }
     }
 
-    public void computeLinearSVCSparse() {
+    public void computeLinearSVC() {
+        double eta = learningRate;
+
         for (int epoch = 0; epoch < epochs; epoch++) {
             for (int i = 0; i < numSamples; i++) {
-                Map<Integer, Double> x = sparseDataset[i];
-                double y = sparseLabels[i];
-                double fx = linearDecisionSparse(weights, x, bias);
+                double y = labels[i];
 
-                if (y * fx < 1) {
-                    for (Map.Entry<Integer, Double> entry : x.entrySet()) {
+                double fx = bias;
+
+                if (sparse) {
+                    Map<Integer, Double> x = sparseDataset.get(i);
+                    for (var entry : x.entrySet()) {
+                        fx += weights[entry.getKey()] * entry.getValue();
+                    }
+                    double multiplier = (y * fx < 1) ? C * y : 0;
+                    for (var entry : x.entrySet()) {
                         int idx = entry.getKey();
                         double val = entry.getValue();
-                        weights[idx] -= learningRate * (weights[idx] - C * y * val);
+                        weights[idx] = weights[idx] - eta * (weights[idx] - multiplier * val);
                     }
-                    bias += learningRate * C * y;
                 } else {
-                    for (int j = 0; j < weights.length; j++)
-                        weights[j] -= learningRate * weights[j];
+                    double[] x = dataset[i];
+                    for (int j = 0; j < numFeatures; j++) {
+                        fx += weights[j] * x[j];
+                    }
+                    double multiplier = (y * fx < 1) ? C * y : 0;
+                    for (int j = 0; j < numFeatures; j++) {
+                        weights[j] = weights[j] - eta * (weights[j] - multiplier * x[j]);
+                    }
                 }
+
+                bias += (y * fx < 1) ? eta * C * y : 0;
             }
         }
     }
 
     public void computeSVC() {
+        double[][] K = new double[numSamples][numSamples];
+        for (int i = 0; i < numSamples; i++) {
+            double[] xi = getX(i);
+            for (int j = i; j < numSamples; j++) {
+                double[] xj = getX(j);
+                double val = kernel(xi, xj);
+                K[i][j] = val;
+                K[j][i] = val;
+            }
+        }
+
+        // Dual coordinate ascent (SMO-like simplified loop)
         for (int epoch = 0; epoch < epochs; epoch++) {
             for (int i = 0; i < numSamples; i++) {
+                double Ei = predictScoreDual(i, K) - labels[i];
+                double yi = labels[i];
 
-                double yi = dataset[i][numFeatures];
-                double Ei = decisionDual(i) - yi;
-
-                if ((yi * Ei < -1e-3 && alpha[i] < C) ||
-                        (yi * Ei > 1e-3 && alpha[i] > 0)) {
-
+                if ((yi * Ei < -1e-3 && alpha[i] < C) || (yi * Ei > 1e-3 && alpha[i] > 0)) {
                     int j = (i + 1) % numSamples;
+                    double Ej = predictScoreDual(j, K) - labels[j];
 
-                    double yj = dataset[j][numFeatures];
-                    double Ej = decisionDual(j) - yj;
-
-                    // double aiOld = alpha[i];
-                    double ajOld = alpha[j];
-
-                    double kii = kernel(getX(i), getX(i));
-                    double kjj = kernel(getX(j), getX(j));
-                    double kij = kernel(getX(i), getX(j));
+                    double kii = K[i][i];
+                    double kjj = K[j][j];
+                    double kij = K[i][j];
 
                     double eta = kii + kjj - 2 * kij;
                     if (eta <= 0)
                         continue;
 
-                    alpha[j] += yj * (Ei - Ej) / eta;
+                    double alphaIOld = alpha[i];
+                    double alphaJOld = alpha[j];
+                    alpha[j] += labels[j] * (Ei - Ej) / eta;
                     alpha[j] = Math.max(0, Math.min(C, alpha[j]));
-                    alpha[i] += yi * yj * (ajOld - alpha[j]);
+                    alpha[i] += labels[i] * labels[j] * (alphaJOld - alpha[j]);
+
+                    updateBias(i, j, Ei, Ej, labels[i], labels[j], kii, kjj, kij, alphaIOld, alphaJOld);
                 }
             }
         }
 
-        if (kernel.equals("linearkernel")) {
+        // If linear kernel, build primal weights from alphas
+        if ("linearkernel".equalsIgnoreCase(kernel)) {
             for (int i = 0; i < numSamples; i++) {
-                double y = dataset[i][numFeatures];
+                double y = labels[i];
                 double[] x = getX(i);
                 for (int j = 0; j < weights.length; j++) {
                     weights[j] += alpha[i] * y * x[j];
                 }
             }
         }
+    }
+
+    protected double predictScoreDual(int i, double[][] K) {
+        double sum = 0.0;
+        for (int j = 0; j < numSamples; j++) {
+            if (alpha[j] == 0)
+                continue;
+            sum += alpha[j] * labels[j] * K[j][i];
+        }
+        return sum + bias;
     }
 
     protected double[] getX(int i) {
@@ -235,7 +274,7 @@ public class AbstractSVM {
         for (int j = 0; j < numSamples; j++) {
             if (alpha[j] == 0)
                 continue;
-            double yj = dataset[j][numFeatures];
+            double yj = labels[j];
             sum += alpha[j] * yj * kernel(getX(j), xi);
         }
         return sum + bias;
@@ -255,12 +294,14 @@ public class AbstractSVM {
             sum += w[entry.getKey()] * entry.getValue();
         return sum + b;
     }
+
     protected double kernel(double[] x, double z[]) {
         switch (kernel) {
             case "polynomial":
-                return polynomialKernel(x, z, 1.0, 3);
+                return polynomialKernel(x, z);
             case "rbf":
-                return rbfKernel(x, z, 0.5);
+                return rbfKernel(x, z);
+            case "linearkernel":
             default:
                 return linearKernel(x, z);
         }
@@ -273,11 +314,11 @@ public class AbstractSVM {
         return sum;
     }
 
-    public double polynomialKernel(double[] x, double[] z, double c, int d) {
-        return Math.pow(linearKernel(x, z) + c, d);
+    public double polynomialKernel(double[] x, double[] z) {
+        return Math.pow(linearKernel(x, z) + coef0, degree);
     }
 
-    public double rbfKernel(double[] x, double[] z, double gamma) {
+    public double rbfKernel(double[] x, double[] z) {
         double sum = 0.0;
         for (int i = 0; i < x.length; i++) {
             double diff = x[i] - z[i];
@@ -287,16 +328,29 @@ public class AbstractSVM {
     }
 
     public double predictScore(double[] row) {
+        if ("svc".equalsIgnoreCase(this.method)) {
+            double sum = 0.0;
+
+            for (int i = 0; i < numSamples; i++) {
+                if (alpha[i] == 0)
+                    continue;
+                double[] xi = getX(i);
+                sum += alpha[i] * labels[i] * kernel(xi, row);
+            }
+
+            return sum + bias;
+        }
         return linearDecision(weights, row, bias);
     }
-    
+
     public int predictSparse(Map<Integer, Double> row) {
         if (row == null)
             throw new IllegalArgumentException("Sparse row cannot be null.");
 
         if (row.isEmpty())
             throw new IllegalArgumentException("Sparse row cannot be empty.");
-        return linearDecisionSparse(weights, row, bias) >= 0 ? 1 : -1;
+        int raw = linearDecisionSparse(weights, row, bias) >= 0 ? 1 : -1;
+        return restoreLabel(raw);
     }
 
     public int predict(double[] row) {
@@ -305,7 +359,8 @@ public class AbstractSVM {
 
         if (row.length != numFeatures)
             throw new IllegalArgumentException("Row must have exactly " + numFeatures + " features.");
-        return predictScore(row) >= 0 ? 1 : -1;
+        int raw = predictScore(row) >= 0 ? 1 : -1;
+        return restoreLabel(raw);
     }
 
     public double[] getWeights() {
@@ -314,5 +369,59 @@ public class AbstractSVM {
 
     public double getBias() {
         return bias;
+    }
+
+    private double[] normalizeLabels(double[] y) {
+        double[] out = new double[y.length];
+
+        boolean hasZero = false, hasOne = false, hasNeg = false;
+
+        for (double v : y) {
+            if (v == 0)
+                hasZero = true;
+            if (v == 1)
+                hasOne = true;
+            if (v == -1)
+                hasNeg = true;
+        }
+
+        // Detect {0,1}
+        if (hasZero && hasOne && !hasNeg) {
+            originalZeroOne = true;
+            normalizedLabels = true;
+
+            for (int i = 0; i < y.length; i++)
+                out[i] = (y[i] == 0) ? -1 : 1;
+
+            return out;
+        }
+
+        return y; // already fine
+    }
+
+    private int restoreLabel(int pred) {
+        if (originalZeroOne)
+            return pred == -1 ? 0 : 1;
+        return pred;
+    }
+
+    private void updateBias(int i, int j, double Ei, double Ej, double yi, double yj,
+            double kii, double kjj, double kij,
+            double aiOld, double ajOld) {
+
+        double bi = bias - Ei
+                - yi * (alpha[i] - aiOld) * kii
+                - yj * (alpha[j] - ajOld) * kij;
+
+        double bj = bias - Ej
+                - yi * (alpha[i] - aiOld) * kij
+                - yj * (alpha[j] - ajOld) * kjj;
+
+        if (alpha[i] > 0 && alpha[i] < C)
+            bias = bi;
+        else if (alpha[j] > 0 && alpha[j] < C)
+            bias = bj;
+        else
+            bias = (bi + bj) / 2.0;
     }
 }

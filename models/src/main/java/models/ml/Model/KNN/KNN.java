@@ -523,66 +523,6 @@ public class KNN extends Model {
     }
 
     @Override
-    public void partialFit(double[][] batchDataset, double[] batchLabels) {
-        if (batchDataset == null || batchDataset.length == 0) {
-            throw new IllegalArgumentException("batchDataset cannot be empty");
-        }
-        if (batchLabels == null || batchLabels.length != batchDataset.length) {
-            throw new IllegalArgumentException("batchLabels must match batchDataset length");
-        }
-
-        // Merge new batch into existing dense dataset
-        int oldSize = (denseTrainingDataset != null) ? denseTrainingDataset.length : 0;
-        int newSize = oldSize + batchDataset.length;
-
-        double[][] mergedData = new double[newSize][];
-        double[] mergedLabels = new double[newSize];
-
-        if (oldSize > 0) {
-            System.arraycopy(denseTrainingDataset, 0, mergedData, 0, oldSize);
-            System.arraycopy(trainingLabels, 0, mergedLabels, 0, oldSize);
-        }
-        System.arraycopy(batchDataset, 0, mergedData, oldSize, batchDataset.length);
-        System.arraycopy(batchLabels, 0, mergedLabels, oldSize, batchLabels.length);
-
-        this.denseTrainingDataset = mergedData;
-        this.trainingLabels = mergedLabels;
-        this.sparse = false;
-
-        refresh(); // rebuild knn index
-    }
-
-    @Override
-    public void partialFit(List<Map<Integer, Double>> batchDataset, double[] batchLabels) {
-        if (batchDataset == null || batchDataset.isEmpty()) {
-            throw new IllegalArgumentException("batchDataset cannot be empty");
-        }
-        if (batchLabels == null || batchLabels.length != batchDataset.size()) {
-            throw new IllegalArgumentException("batchLabels must match batchDataset size");
-        }
-
-        // Merge new batch into existing sparse dataset
-        if (sparseTrainingDataset == null) {
-            sparseTrainingDataset = new ArrayList<>();
-        }
-        sparseTrainingDataset.addAll(batchDataset);
-
-        int oldSize = (trainingLabels != null) ? trainingLabels.length : 0;
-        int newSize = oldSize + batchLabels.length;
-
-        double[] mergedLabels = new double[newSize];
-        if (oldSize > 0) {
-            System.arraycopy(trainingLabels, 0, mergedLabels, 0, oldSize);
-        }
-        System.arraycopy(batchLabels, 0, mergedLabels, oldSize, batchLabels.length);
-
-        this.trainingLabels = mergedLabels;
-        this.sparse = true;
-
-        refresh();
-    }
-
-    @Override
     public String getModelType() {
         return "KNN";
     }

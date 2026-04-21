@@ -1,4 +1,4 @@
-package models.ml.Model.NaiveBayes;
+package models.ml.Model.SVM;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -15,73 +15,140 @@ import models.ml.DatasetHandler.DatasetLoader;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.Model.Metrics;
 import models.ml.Model.Model;
-import models.ml.Model.NaiveBayes.AbstractNaiveBayes;
 
-public class NaiveBayes extends Model {
-    public enum NBMETHODS {
-        GAUSSIAN, MULTINOMIAL, BERNOULLI
+public class SVM extends Model {
+    public enum SVMMETHODS {
+        LINEARSVC, SVC
     }
 
-    private static final String DEFAULT_DENSE_METHOD = "gaussian";
-    private static final String DEFAULT_SPARSE_METHOD = "multinomial";
-    private static final double DEFAULT_ALPHA = 1.0;
+    private static final String DEFAULT_DENSE_METHOD = "linearsvc";
+    private static final String DEFAULT_SPARSE_METHOD = "svc";
+    private static final String DEFAULT_KERNEL = "linearkernel";
+    private static final double DEFAULT_C = 1.0;
+    private static final double DEFAULT_LEARNING_RATE = 0.01;
+    private static final int DEFAULT_EPOCHS = 1000;
+    private static final double DEFAULT_GAMMA = 0.1;
+    private static final int DEFAULT_DEGREE = 3;
+    private static final double DEFAULT_COEF0 = 1.0;
+
     public String method;
-    public double alpha;
-    private AbstractNaiveBayes nb;
+    public String kernel;
+    public double C;
+    public double learningRate;
+    public int epochs;
+    public double gamma;
+    public int degree;
+    public double coef0;
+    private AbstractSVM svm;
 
-    public NaiveBayes() {
+    public SVM() {
     }
 
-    public NaiveBayes(double[][] trainingDataset, String method, double alpha) {
+    public SVM(double[][] trainingDataset, String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset);
-        initDenseParams(method, alpha);
-        initNB();
+        initDenseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(double[][] trainingDataset, double[] trainingLabels, String method, double alpha) {
+    public SVM(double[][] trainingDataset) {
+        this(trainingDataset, DEFAULT_DENSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(double[][] trainingDataset, double[] trainingLabels,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, trainingLabels);
-        initDenseParams(method, alpha);
-        initNB();
+        initDenseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(double[][] trainingDataset, double[][] testDataset, String method, double alpha) {
+    public SVM(double[][] trainingDataset, double[] trainingLabels) {
+        this(trainingDataset, trainingLabels, DEFAULT_DENSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(double[][] trainingDataset, double[][] testDataset, String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, testDataset);
-        initDenseParams(method, alpha);
-        initNB();
+        initDenseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            String method, double alpha) {
+    public SVM(double[][] trainingDataset, double[][] testDataset) {
+        this(trainingDataset, testDataset, DEFAULT_DENSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initDenseParams(method, alpha);
-        initNB();
+        initDenseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, String method, double alpha) {
+    public SVM(double[][] trainingDataset, double[] trainingLabels,
+            double[][] testDataset, double[] testLabels) {
+        this(trainingDataset, trainingLabels, testDataset, testLabels,
+                DEFAULT_DENSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(List<Map<Integer, Double>> trainingDataset,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset);
-        initSparseParams(method, alpha);
-        initNB();
+        initSparseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method,
-            double alpha) {
+    public SVM(List<Map<Integer, Double>> trainingDataset) {
+        this(trainingDataset, DEFAULT_SPARSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, trainingLabels);
-        initSparseParams(method, alpha);
-        initNB();
+        initSparseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset,
-            String method, double alpha) {
+    public SVM(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels) {
+        this(trainingDataset, trainingLabels, DEFAULT_SPARSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, testDataset);
-        initSparseParams(method, alpha);
-        initNB();
+        initSparseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
     }
 
-    public NaiveBayes(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, String method, double alpha) {
+    public SVM(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset) {
+        this(trainingDataset, testDataset, DEFAULT_SPARSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
+    }
+
+    public SVM(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> testDataset, double[] testLabels,
+            String method, String kernel,
+            double C, double learningRate, int epochs, double gamma, int degree, double coef0) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initSparseParams(method, alpha);
-        initNB();
+        initSparseParams(method, kernel, C, learningRate, epochs, gamma, degree, coef0);
+        initSVM();
+    }
+
+    public SVM(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> testDataset, double[] testLabels) {
+        this(trainingDataset, trainingLabels, testDataset, testLabels,
+                DEFAULT_SPARSE_METHOD, DEFAULT_KERNEL,
+                DEFAULT_C, DEFAULT_LEARNING_RATE, DEFAULT_EPOCHS, DEFAULT_GAMMA, DEFAULT_DEGREE, DEFAULT_COEF0);
     }
 
     @Override
@@ -92,23 +159,17 @@ public class NaiveBayes extends Model {
         this.denseTrainingDataset = this.scaler.extractFeatures(trainingDataset);
         this.trainingLabels = this.scaler.extractLabels(trainingDataset);
         initDenseParams();
-        initNB();
+        initSVM();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset);
-    }
-
-    public void fit(double[][] trainingDataset, String method) {
+    public void fit(double[][] trainingDataset, String method, String kernel, double C, double learningRate,
+            int epochs) {
         this.method = method;
-        this.fit(trainingDataset);
-    }
-
-    public void fit(double[][] trainingDataset, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset);
     }
 
@@ -123,23 +184,18 @@ public class NaiveBayes extends Model {
         this.denseTrainingDataset = trainingDataset;
         this.trainingLabels = trainingLabels;
         initDenseParams();
-        initNB();
+        initSVM();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double[] trainingLabels, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, trainingLabels);
-    }
-
-    public void fit(double[][] trainingDataset, double[] trainingLabels, String method) {
+    public void fit(double[][] trainingDataset,
+            double[] trainingLabels, String method, String kernel, double C, double learningRate,
+            int epochs) {
         this.method = method;
-        this.fit(trainingDataset, trainingLabels);
-    }
-
-    public void fit(double[][] trainingDataset, double[] trainingLabels, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, trainingLabels);
     }
 
@@ -156,23 +212,18 @@ public class NaiveBayes extends Model {
         this.trainingLabels = this.scaler.extractLabels(trainingDataset);
         this.testLabels = this.scaler.extractLabels(testDataset);
         initDenseParams();
-        initNB();
+        initSVM();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double[][] testDataset, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, testDataset);
-    }
-
-    public void fit(double[][] trainingDataset, double[][] testDataset, String method) {
+    public void fit(double[][] trainingDataset,
+            double[][] testDataset, String method, String kernel, double C, double learningRate,
+            int epochs) {
         this.method = method;
-        this.fit(trainingDataset, testDataset);
-    }
-
-    public void fit(double[][] trainingDataset, double[][] testDataset, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, testDataset);
     }
 
@@ -195,26 +246,18 @@ public class NaiveBayes extends Model {
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
         initDenseParams();
-        initNB();
+        initSVM();
         this.sparse = false;
     }
 
-    public void fit(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
-    }
-
-    public void fit(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            String method) {
+    public void fit(double[][] trainingDataset,
+            double[] trainingLabels, double[][] testDataset, double[] testLabels, String method, String kernel,
+            double C, double learningRate, int epochs) {
         this.method = method;
-        this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
-    }
-
-    public void fit(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
-            double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
 
@@ -224,24 +267,18 @@ public class NaiveBayes extends Model {
             throw new IllegalArgumentException("trainingDataset cannot be empty");
         }
         this.sparseTrainingDataset = trainingDataset;
-            initSparseParams();
-            initNB();
+        initSparseParams();
+        initSVM();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, String method) {
+    public void fit(List<Map<Integer, Double>> trainingDataset, String method, String kernel,
+            double C, double learningRate, int epochs) {
         this.method = method;
-        this.fit(trainingDataset);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset);
     }
 
@@ -253,23 +290,17 @@ public class NaiveBayes extends Model {
         this.sparseTrainingDataset = trainingDataset;
         this.trainingLabels = trainingLabels;
         initSparseParams();
-        initNB();
+        initSVM();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, trainingLabels);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method) {
+    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method, String kernel,
+            double C, double learningRate, int epochs) {
         this.method = method;
-        this.fit(trainingDataset, trainingLabels);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, trainingLabels);
     }
 
@@ -281,24 +312,18 @@ public class NaiveBayes extends Model {
         this.sparseTrainingDataset = trainingDataset;
         this.sparseTestDataset = testDataset;
         initSparseParams();
-        initNB();
+        initSVM();
         this.sparse = true;
     }
 
-    public void fit(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, testDataset);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, String method) {
+    public void fit(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset, String method,
+            String kernel,
+            double C, double learningRate, int epochs) {
         this.method = method;
-        this.fit(trainingDataset, testDataset);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset,
-            List<Map<Integer, Double>> testDataset, double alpha, String method) {
-        this.alpha = alpha;
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, testDataset);
     }
 
@@ -313,26 +338,18 @@ public class NaiveBayes extends Model {
         this.trainingLabels = trainingLabels;
         this.testLabels = testLabels;
         initSparseParams();
-        initNB();
+        initSVM();
         this.sparse = true;
     }
 
     public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, double alpha) {
-        this.alpha = alpha;
-        this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, double alpha, String method) {
-        this.alpha = alpha;
+            List<Map<Integer, Double>> testDataset, double[] testLabels, String method, String kernel, double C,
+            double learningRate, int epochs) {
         this.method = method;
-        this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
-    }
-
-    public void fit(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
-            List<Map<Integer, Double>> testDataset, double[] testLabels, String method) {
-        this.method = method;
+        this.kernel = kernel;
+        this.C = C;
+        this.learningRate = learningRate;
+        this.epochs = epochs;
         this.fit(trainingDataset, trainingLabels, testDataset, testLabels);
     }
 
@@ -356,41 +373,52 @@ public class NaiveBayes extends Model {
         this.denseTestDataset = this.scaler.extractFeatures(splitData.test);
         this.testLabels = this.scaler.extractLabels(splitData.test);
         initDenseParams();
-        initNB();
+        initSVM();
         this.sparse = false;
     }
 
     @Override
     public int[] predictLabels() {
-        if (nb == null)
+        if (svm == null) {
             throw new IllegalStateException("Model must be fitted before prediction.");
+        }
 
-        // Determine which dataset to predict on (Test set)
         int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
         int[] predictions = new int[n];
 
         for (int i = 0; i < n; i++) {
-            Map<Integer, Double> probs = sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
-                    : nb.computeProbabilities(denseTestDataset[i]);
-
-            predictions[i] = getMaxProbabilityClass(probs);
+            predictions[i] = sparse
+                    ? svm.predictSparse(sparseTestDataset.get(i))
+                    : svm.predict(denseTestDataset[i]);
         }
         return predictions;
     }
 
     @Override
     public List<Map<Integer, Double>> predictProbabilities() {
-        if (nb == null)
+        if (svm == null) {
             throw new IllegalStateException("Model must be fitted before prediction.");
+        }
 
-        List<Map<Integer, Double>> allProbabilities = new ArrayList<>();
+        List<Map<Integer, Double>> probabilities = new ArrayList<>();
         int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
 
         for (int i = 0; i < n; i++) {
-            allProbabilities.add(sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
-                    : nb.computeProbabilities(denseTestDataset[i]));
+            double score = sparse
+                    ? svm.linearDecisionSparse(svm.getWeights(), sparseTestDataset.get(i), svm.getBias())
+                    : svm.predictScore(denseTestDataset[i]);
+
+            // Sigmoid transform
+            double probPositive = 1.0 / (1.0 + Math.exp(-score));
+            double probNegative = 1.0 - probPositive;
+
+            Map<Integer, Double> probMap = new HashMap<>();
+            probMap.put(1, probPositive);
+            probMap.put(-1, probNegative);
+
+            probabilities.add(probMap);
         }
-        return allProbabilities;
+        return probabilities;
     }
 
     @Override
@@ -399,10 +427,13 @@ public class NaiveBayes extends Model {
         int[][] multiLabels = new int[probs.size()][];
 
         for (int i = 0; i < probs.size(); i++) {
-            multiLabels[i] = probs.get(i).entrySet().stream()
-                    .filter(entry -> entry.getValue() >= threshold)
-                    .mapToInt(Map.Entry::getKey)
-                    .toArray();
+            List<Integer> labels = new ArrayList<>();
+            for (var e : probs.get(i).entrySet()) {
+                if (e.getValue() >= threshold) {
+                    labels.add(e.getKey());
+                }
+            }
+            multiLabels[i] = labels.stream().mapToInt(Integer::intValue).toArray();
         }
         return multiLabels;
     }
@@ -413,6 +444,7 @@ public class NaiveBayes extends Model {
             throw new IllegalArgumentException("Dataset and labels must match in length.");
         }
 
+        // Temporarily swap state
         double[][] originalDenseTest = this.denseTestDataset;
         boolean originalSparseFlag = this.sparse;
 
@@ -422,18 +454,11 @@ public class NaiveBayes extends Model {
         int[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
+        // Restore state
         this.denseTestDataset = originalDenseTest;
         this.sparse = originalSparseFlag;
 
         return results;
-    }
-
-    @Override
-    public Map<String, Double> evaluate(String[] metrics) {
-        if (sparse) {
-            return evaluate(this.sparseTestDataset, this.testLabels, metrics);
-        }
-        return evaluate(this.denseTestDataset, this.testLabels, metrics);
     }
 
     @Override
@@ -460,11 +485,22 @@ public class NaiveBayes extends Model {
     }
 
     @Override
+    public Map<String, Double> evaluate(String[] metrics) {
+        if (sparse) {
+            return evaluate(this.sparseTestDataset, this.testLabels, metrics);
+        }
+        return evaluate(this.denseTestDataset, this.testLabels, metrics);
+    }
+
+    @Override
     public void save(String filename) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
             // Save core parameters
-            oos.writeObject(this.alpha);
             oos.writeObject(this.method);
+            oos.writeObject(this.kernel);
+            oos.writeObject(this.C);
+            oos.writeObject(this.learningRate);
+            oos.writeObject(this.epochs);
             oos.writeObject(this.sparse);
 
             // Save datasets and labels
@@ -478,7 +514,7 @@ public class NaiveBayes extends Model {
             oos.writeObject(this.trainingLabels);
             oos.writeObject(this.testLabels);
         } catch (IOException e) {
-            throw new RuntimeException("Error saving Naive Bayes model: " + e.getMessage(), e);
+            throw new RuntimeException("Error saving SVM model: " + e.getMessage(), e);
         }
     }
 
@@ -487,8 +523,11 @@ public class NaiveBayes extends Model {
     public void load(String filename) {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             // Load core parameters
-            this.alpha = (double) ois.readObject();
             this.method = (String) ois.readObject();
+            this.kernel = (String) ois.readObject();
+            this.C = (double) ois.readObject();
+            this.learningRate = (double) ois.readObject();
+            this.epochs = (int) ois.readObject();
             this.sparse = (boolean) ois.readObject();
 
             // Load datasets and labels
@@ -502,15 +541,16 @@ public class NaiveBayes extends Model {
             this.trainingLabels = (double[]) ois.readObject();
             this.testLabels = (double[]) ois.readObject();
 
+            // Rebuild the SVM
             refresh();
         } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException("Error loading Naive Bayes model: " + e.getMessage(), e);
+            throw new RuntimeException("Error loading SVM model: " + e.getMessage(), e);
         }
     }
 
     @Override
     public String getModelType() {
-        return "Naive Bayes";
+        return "Support Vector Machine(SVM)";
     }
 
     @Override
@@ -521,50 +561,70 @@ public class NaiveBayes extends Model {
     @Override
     public void refresh() {
         if (!sparse && denseTrainingDataset != null) {
-            this.nb = new AbstractNaiveBayes(this.denseTrainingDataset, this.trainingLabels, this.method, this.alpha);
+            this.svm = new AbstractSVM(denseTrainingDataset, trainingLabels, C, learningRate, epochs, kernel, method,
+                    gamma, degree, coef0);
         } else if (sparse && sparseTrainingDataset != null) {
-            this.nb = new AbstractNaiveBayes(this.sparseTrainingDataset, this.trainingLabels, this.method, this.alpha);
+            this.svm = new AbstractSVM(sparseTrainingDataset, trainingLabels, C, learningRate, epochs, kernel,
+                    method, gamma, degree, coef0);
         } else {
             throw new IllegalArgumentException("Dataset cannot be null.");
         }
     }
 
-    private void initDenseParams(String method, double alpha) {
+    private void initDenseParams(String method, String kernel, double C, double learningRate, int epochs,
+            double gamma, int degree, double coef0) {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
-        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.kernel = (kernel != null) ? kernel.toLowerCase() : DEFAULT_KERNEL;
+        this.C = (C > 0) ? C : DEFAULT_C;
+        this.learningRate = (learningRate > 0) ? learningRate : DEFAULT_LEARNING_RATE;
+        this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        this.gamma = gamma;
+        this.degree = degree;
+        this.coef0 = coef0;
         this.sparse = false;
     }
 
-    private void initSparseParams(String method, double alpha) {
+    private void initSparseParams(String method, String kernel, double C, double learningRate, int epochs,
+            double gamma, int degree, double coef0) {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
-        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.kernel = (kernel != null) ? kernel.toLowerCase() : DEFAULT_KERNEL;
+        this.C = (C > 0) ? C : DEFAULT_C;
+        this.learningRate = (learningRate > 0) ? learningRate : DEFAULT_LEARNING_RATE;
+        this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        this.gamma = gamma;
+        this.degree = degree;
+        this.coef0 = coef0;
         this.sparse = true;
     }
+
     private void initDenseParams() {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
-        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.kernel = (kernel != null) ? kernel.toLowerCase() : DEFAULT_KERNEL;
+        this.C = (C > 0) ? C : DEFAULT_C;
+        this.learningRate = (learningRate > 0) ? learningRate : DEFAULT_LEARNING_RATE;
+        this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
         this.sparse = false;
     }
 
     private void initSparseParams() {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
-        this.alpha = (alpha > 0) ? alpha : DEFAULT_ALPHA;
+        this.kernel = (kernel != null) ? kernel.toLowerCase() : DEFAULT_KERNEL;
+        this.C = (C > 0) ? C : DEFAULT_C;
+        this.learningRate = (learningRate > 0) ? learningRate : DEFAULT_LEARNING_RATE;
+        this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
         this.sparse = true;
     }
 
-    private void initNB() {
+    private void initSVM() {
         if (!sparse && denseTrainingDataset != null) {
-            this.nb = new AbstractNaiveBayes(this.denseTrainingDataset, this.trainingLabels, this.method, this.alpha);
+            this.svm = new AbstractSVM(denseTrainingDataset, trainingLabels, C, learningRate, epochs, kernel, method,
+                    gamma, degree, coef0);
         } else if (sparse && sparseTrainingDataset != null) {
-            this.nb = new AbstractNaiveBayes(this.sparseTrainingDataset, this.trainingLabels, this.method, this.alpha);
+            this.svm = new AbstractSVM(sparseTrainingDataset, trainingLabels, C, learningRate, epochs, kernel,
+                    method, gamma, degree, coef0);
+        } else {
+            throw new IllegalArgumentException("Dataset cannot be null.");
         }
-    }
-
-    private int getMaxProbabilityClass(Map<Integer, Double> probabilities) {
-        return probabilities.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElseThrow(() -> new RuntimeException("Probability map is empty"));
     }
 
     private Map<String, Double> calculateMetrics(int[] predictions, double[] labels, String[] metrics) {
