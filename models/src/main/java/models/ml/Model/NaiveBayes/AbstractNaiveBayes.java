@@ -229,7 +229,21 @@ public class AbstractNaiveBayes {
 
         for (int i = 0; i < classes.length; i++) {
             int c = classes[i];
-            double logLike = multinomialLogLikeSparse(c, x);
+            double logLike;
+            
+            switch (method) {
+                case "multinomial":
+                case "m":
+                    logLike = multinomialLogLikeSparse(c, x);
+                    break;
+                case "bernoulli":
+                case "b":
+                    logLike = bernoulliLogLikeSparse(c, x);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported Naive Bayes method for sparse data: " + method);
+            }
+            
             out.put(c, logPriors[i] + logLike);
         }
         return out;

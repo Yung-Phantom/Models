@@ -154,12 +154,12 @@ public class AbstractSVM {
         this.coef0 = coef0;
         switch (this.method) {
             case "svc":
-                computeSVC();
-                break;
+                throw new IllegalArgumentException("svc is not supported for sparse data; use linearsvc");
             case "linearsvc":
                 computeLinearSVC();
+                break;
             default:
-                System.out.println("Method not supported: " + method);
+                throw new IllegalArgumentException("Unsupported method for sparse data: " + method);
         }
     }
 

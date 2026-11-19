@@ -27,14 +27,21 @@ public class AbstractKNN {
         if (sparseDataset == null || sparseDataset.isEmpty())
             throw new IllegalArgumentException("Empty sparse dataset");
 
+        // Infer numFeatures from max feature index + 1 (like AbstractNaiveBayes)
+        this.numFeatures = inferFeatureCount(sparseDataset);
+
         for (Map<Integer, Double> row : sparseDataset) {
             if (row == null)
                 throw new IllegalArgumentException("Sparse dataset contains null row");
-            if (row.size() != numFeatures)
-                throw new IllegalArgumentException("Inconsistent row length");
             for (double val : row.values()) {
                 if (Double.isNaN(val) || Double.isInfinite(val)) {
                     throw new IllegalArgumentException("Dataset contains NaN or Infinity");
+                }
+            }
+            // Check for negative keys
+            for (Integer key : row.keySet()) {
+                if (key < 0) {
+                    throw new IllegalArgumentException("Sparse dataset contains negative feature index: " + key);
                 }
             }
         }
@@ -113,8 +120,14 @@ public class AbstractKNN {
         }
         if (x == null || y == null)
             throw new IllegalArgumentException("Vectors cannot be null");
-        if (x.size() != numFeatures || y.size() != numFeatures)
-            throw new IllegalArgumentException("Vector dimension mismatch");
+        // Remove size check - sparse rows legitimately have different sizes
+        // Check for negative keys
+        for (Integer key : x.keySet()) {
+            if (key < 0) throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
+        }
+        for (Integer key : y.keySet()) {
+            if (key < 0) throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
+        }
 
         switch (method) {
             case "euclidean":
@@ -371,7 +384,7 @@ public class AbstractKNN {
         for (Map.Entry<Integer, Double> e : row.entrySet()) {
             int key = e.getKey();
             double val = e.getValue();
-            if (key < 0 || key >= numFeatures) {
+            if (key < 0) {
                 throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
             }
             if (Double.isNaN(val) || Double.isInfinite(val)) {
@@ -404,5 +417,13 @@ public class AbstractKNN {
                 .max(Map.Entry.comparingByValue())
                 .get()
                 .getKey();
+    }
+
+    private int inferFeatureCount(List<Map<Integer, Double>> X) {
+        int max = 0;
+        for (var m : X)
+            for (int k : m.keySet())
+                max = Math.max(max, k + 1);
+        return max;
     }
 }

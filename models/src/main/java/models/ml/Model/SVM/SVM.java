@@ -22,7 +22,7 @@ public class SVM extends Model {
     }
 
     private static final String DEFAULT_DENSE_METHOD = "linearsvc";
-    private static final String DEFAULT_SPARSE_METHOD = "svc";
+    private static final String DEFAULT_SPARSE_METHOD = "linearsvc";
     private static final String DEFAULT_KERNEL = "linearkernel";
     private static final double DEFAULT_C = 1.0;
     private static final double DEFAULT_LEARNING_RATE = 0.01;
