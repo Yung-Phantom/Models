@@ -259,11 +259,11 @@ public abstract class Model {
 
     public abstract void fit(DatasetLoader loader, double splitDecimal, String splitStrategy);
 
-    public abstract int[] predictLabels();
+    public abstract double[] predictLabels();
 
     public abstract List<Map<Integer, Double>> predictProbabilities();
 
-    public abstract int[][] predictMultiLabel(double threshold);
+    public abstract double[][] predictMultiLabel(double threshold);
 
     public abstract Map<String, Double> evaluate(double[][] dataset, double[] labels, String[] metrics);
 

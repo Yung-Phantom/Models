@@ -23,4 +23,15 @@ public class StandardScaler {
         }
         return labels;
     }
+
+    public double[] extractLabelsRegression(double[][] dataset) {
+        if (dataset[0].length < 2)
+            throw new IllegalArgumentException("Dataset must have at least one feature and one label column.");
+
+        double[] labels = new double[dataset.length];
+        for (int i = 0; i < dataset.length; i++) {
+            labels[i] = dataset[i][dataset[0].length - 1];
+        }
+        return labels;
+    }
 }

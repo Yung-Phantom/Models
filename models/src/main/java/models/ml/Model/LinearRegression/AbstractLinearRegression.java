@@ -1,4 +1,4 @@
-package models.ml.LinearRegression;
+package models.ml.Model.LinearRegression;
 
 import java.util.*;
 
@@ -65,7 +65,7 @@ public class AbstractLinearRegression {
         fit();
     }
 
-    public AbstractLinearRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels, int numFeatures,
+    public AbstractLinearRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
             String method, double learningRate, int epochs) {
         this.sparse = true;
 
@@ -81,9 +81,6 @@ public class AbstractLinearRegression {
             for (Map.Entry<Integer, Double> e : row.entrySet()) {
                 int key = e.getKey();
                 double val = e.getValue();
-                if (key < 0 || key >= numFeatures) {
-                    throw new IllegalArgumentException("Sparse dataset contains invalid feature index: " + key);
-                }
                 if (Double.isNaN(val) || Double.isInfinite(val)) {
                     throw new IllegalArgumentException("Sparse dataset contains NaN or Infinity");
                 }
@@ -93,11 +90,17 @@ public class AbstractLinearRegression {
         this.sparseDataset = sparseDataset;
         this.trainingLabels = trainingLabels;
         this.numSamples = sparseDataset.size();
-        this.numFeatures = numFeatures;
+
+        // Infer numFeatures from max feature index + 1
+        this.numFeatures = sparseDataset.stream()
+                .flatMap(m -> m.keySet().stream())
+                .max(Integer::compare)
+                .orElseThrow(() -> new IllegalArgumentException("Sparse dataset must contain features"))
+                + 1;
 
         this.method = method.trim().toLowerCase();
         if (!Set.of("gd", "gradientdescent").contains(this.method))
-            throw new IllegalArgumentException("Unsupported method: " + method);
+            throw new IllegalArgumentException("Unsupported method for sparse data: " + method + ". Only 'gd' or 'gradientdescent' supported for sparse.");
 
         if (learningRate <= 0 || learningRate > 1) {
             throw new IllegalArgumentException("Learning rate must be between 0 and 1");
@@ -143,7 +146,13 @@ public class AbstractLinearRegression {
 
         double[][] Xt = transpose(sparseDataset);
         double[][] XtX = multiply(Xt, sparseDataset);
-        double[][] XtXInv = invert(XtX);
+        double[][] XtXInv;
+        try {
+            XtXInv = invert(XtX);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Normal equation failed: X^T X is singular (collinear features). " +
+                    "Use 'gd' (gradient descent) method instead, or remove collinear features.", e);
+        }
         double[] XtY = multiply(Xt, trainingLabels);
 
         weights = multiply(XtXInv, XtY);

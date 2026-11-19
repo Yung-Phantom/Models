@@ -381,9 +381,9 @@ public class KNN extends Model {
     }
 
     @Override
-    public int[] predictLabels() {
+    public double[] predictLabels() {
         int n = this.sparse ? this.sparseTestDataset.size() : this.denseTestDataset.length;
-        int[] predictions = new int[n];
+        double[] predictions = new double[n];
         for (int i = 0; i < n; i++) {
             predictions[i] = majority(i);
         }
@@ -402,20 +402,20 @@ public class KNN extends Model {
     }
 
     @Override
-    public int[][] predictMultiLabel(double threshold) {
+    public double[][] predictMultiLabel(double threshold) {
         int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
-        int[][] predictions = new int[n][];
+        double[][] predictions = new double[n][];
 
         for (int i = 0; i < n; i++) {
             Map<Integer, Double> probMap = probability(i);
 
-            List<Integer> labels = new ArrayList<>();
+            List<Double> labels = new ArrayList<>();
             for (var e : probMap.entrySet()) {
                 if (e.getValue() >= threshold) {
-                    labels.add(e.getKey());
+                    labels.add((double) e.getKey());
                 }
             }
-            predictions[i] = labels.stream().mapToInt(Integer::intValue).toArray();
+            predictions[i] = labels.stream().mapToDouble(Double::doubleValue).toArray();
         }
         return predictions;
     }
@@ -431,7 +431,7 @@ public class KNN extends Model {
         this.denseTestDataset = dataset;
         this.sparse = false;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         this.denseTestDataset = originalDenseTest;
@@ -461,7 +461,7 @@ public class KNN extends Model {
         this.sparseTestDataset = dataset;
         this.sparse = true;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         // Restore state
@@ -633,21 +633,22 @@ public class KNN extends Model {
         return probs;
     }
 
-    private Map<String, Double> calculateMetrics(int[] predictions, double[] labels, String[] metrics) {
+    private Map<String, Double> calculateMetrics(double[] predictions, double[] labels, String[] metrics) {
         Map<String, Double> results = new HashMap<>();
         int[] actualInt = Arrays.stream(labels).mapToInt(d -> (int) d).toArray();
-        double[] predDouble = Arrays.stream(predictions).asDoubleStream().toArray();
+        int[] predInt = Arrays.stream(predictions).mapToInt(d -> (int) d).toArray();
+        double[] predDouble = predictions;
 
         for (String metric : metrics) {
             switch (metric.toLowerCase()) {
                 case "accuracy":
-                    results.put("accuracy", Metrics.accuracy(predictions, actualInt));
+                    results.put("accuracy", Metrics.accuracy(predInt, actualInt));
                     break;
                 case "precision":
-                    results.put("precision", Metrics.precision(predictions, actualInt, 1));
+                    results.put("precision", Metrics.precision(predInt, actualInt, 1));
                     break;
                 case "recall":
-                    results.put("recall", Metrics.recall(predictions, actualInt, 1));
+                    results.put("recall", Metrics.recall(predInt, actualInt, 1));
                     break;
                 case "mse":
                     results.put("mse", Metrics.mse(predDouble, labels));

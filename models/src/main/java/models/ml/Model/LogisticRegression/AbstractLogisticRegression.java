@@ -1,4 +1,4 @@
-package models.ml.LogisticRegression;
+package models.ml.Model.LogisticRegression;
 
 import java.util.*;
 
@@ -331,7 +331,7 @@ public class AbstractLogisticRegression {
         return z;
     }
 
-    private double predictRowSparse(Map<Integer, Double> row) {
+    public double predictRowSparse(Map<Integer, Double> row) {
         if (!sparse)
             throw new IllegalStateException("Sparse prediction called in dense mode");
         if (row == null)
@@ -372,24 +372,126 @@ public class AbstractLogisticRegression {
         return scores;
     }
 
+    public double[] predictScoresMultinomialSparse(Map<Integer, Double> row) {
+        int numClasses = multiWeights.length;
+        double[] scores = new double[numClasses];
+
+        for (int c = 0; c < numClasses; c++) {
+            scores[c] = multiWeights[c][0];
+            for (var e : row.entrySet()) {
+                int idx = e.getKey();
+                if (idx >= 0 && idx < numFeatures) {
+                    scores[c] += multiWeights[c][idx + 1] * e.getValue();
+                }
+            }
+        }
+        return scores;
+    }
+
     public double[] predictProbabilitiesOrdinal(double[] row) {
         int K = thresholds.length + 1;
-        double[] cumulativeProbabilityulativeProbability = new double[K - 1];
+        double[] cumulativeProbability = new double[K - 1];
         double[] probs = new double[K];
 
         double z = predictRow(row);
 
         for (int k = 0; k < K - 1; k++) {
-            cumulativeProbabilityulativeProbability[k] = sigmoid(thresholds[k] - z);
+            cumulativeProbability[k] = sigmoid(thresholds[k] - z);
         }
 
-        probs[0] = cumulativeProbabilityulativeProbability[0];
+        probs[0] = cumulativeProbability[0];
         for (int k = 1; k < K - 1; k++) {
-            probs[k] = cumulativeProbabilityulativeProbability[k] - cumulativeProbabilityulativeProbability[k - 1];
+            probs[k] = cumulativeProbability[k] - cumulativeProbability[k - 1];
         }
-        probs[K - 1] = 1.0 - cumulativeProbabilityulativeProbability[K - 2];
+        probs[K - 1] = 1.0 - cumulativeProbability[K - 2];
 
         return probs;
+    }
+
+    public double[] predictProbabilitiesOrdinalSparse(Map<Integer, Double> row) {
+        int K = thresholds.length + 1;
+        double[] cumulativeProbability = new double[K - 1];
+        double[] probs = new double[K];
+
+        double z = predictRowSparse(row);
+
+        for (int k = 0; k < K - 1; k++) {
+            cumulativeProbability[k] = sigmoid(thresholds[k] - z);
+        }
+
+        probs[0] = cumulativeProbability[0];
+        for (int k = 1; k < K - 1; k++) {
+            probs[k] = cumulativeProbability[k] - cumulativeProbability[k - 1];
+        }
+        probs[K - 1] = 1.0 - cumulativeProbability[K - 2];
+
+        return probs;
+    }
+
+    public Map<Integer, Double> predictProbabilities(double[] row) {
+        switch (method) {
+            case "binary":
+            case "b": {
+                double p = sigmoid(predictRow(row));
+                Map<Integer, Double> probs = new HashMap<>();
+                probs.put(1, p);
+                probs.put(0, 1.0 - p);
+                return probs;
+            }
+            case "multinomial":
+            case "m": {
+                double[] probsArray = softmax(predictScoresMultinomial(row));
+                Map<Integer, Double> probs = new HashMap<>();
+                for (int i = 0; i < probsArray.length; i++) {
+                    probs.put(i, probsArray[i]);
+                }
+                return probs;
+            }
+            case "ordinal":
+            case "o": {
+                double[] probsArray = predictProbabilitiesOrdinal(row);
+                Map<Integer, Double> probs = new HashMap<>();
+                for (int i = 0; i < probsArray.length; i++) {
+                    probs.put(i, probsArray[i]);
+                }
+                return probs;
+            }
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public Map<Integer, Double> predictProbabilities(Map<Integer, Double> row) {
+        switch (method) {
+            case "binary":
+            case "b": {
+                double p = sigmoid(predictRowSparse(row));
+                Map<Integer, Double> probs = new HashMap<>();
+                probs.put(1, p);
+                probs.put(0, 1.0 - p);
+                return probs;
+            }
+            case "multinomial":
+            case "m": {
+                double[] probsArray = softmax(predictScoresMultinomialSparse(row));
+                Map<Integer, Double> probs = new HashMap<>();
+                for (int i = 0; i < probsArray.length; i++) {
+                    probs.put(i, probsArray[i]);
+                }
+                return probs;
+            }
+            case "ordinal":
+            case "o": {
+                double[] probsArray = predictProbabilitiesOrdinalSparse(row);
+                Map<Integer, Double> probs = new HashMap<>();
+                for (int i = 0; i < probsArray.length; i++) {
+                    probs.put(i, probsArray[i]);
+                }
+                return probs;
+            }
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 
     public int predictClass(double[] row) {
@@ -489,5 +591,33 @@ public class AbstractLogisticRegression {
 
     public double[] getWeights() {
         return weights;
+    }
+
+    public double[][] getMultiWeights() {
+        return multiWeights;
+    }
+
+    public double[] getThresholds() {
+        return thresholds;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public boolean isSparse() {
+        return sparse;
+    }
+
+    public int getNumFeatures() {
+        return numFeatures;
+    }
+
+    public double getLearningRate() {
+        return learningRate;
+    }
+
+    public int getEpochs() {
+        return epochs;
     }
 }

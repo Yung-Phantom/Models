@@ -378,13 +378,13 @@ public class SVM extends Model {
     }
 
     @Override
-    public int[] predictLabels() {
+    public double[] predictLabels() {
         if (svm == null) {
             throw new IllegalStateException("Model must be fitted before prediction.");
         }
 
         int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
-        int[] predictions = new int[n];
+        double[] predictions = new double[n];
 
         for (int i = 0; i < n; i++) {
             predictions[i] = sparse
@@ -422,18 +422,18 @@ public class SVM extends Model {
     }
 
     @Override
-    public int[][] predictMultiLabel(double threshold) {
+    public double[][] predictMultiLabel(double threshold) {
         List<Map<Integer, Double>> probs = predictProbabilities();
-        int[][] multiLabels = new int[probs.size()][];
+        double[][] multiLabels = new double[probs.size()][];
 
         for (int i = 0; i < probs.size(); i++) {
-            List<Integer> labels = new ArrayList<>();
+            List<Double> labels = new ArrayList<>();
             for (var e : probs.get(i).entrySet()) {
                 if (e.getValue() >= threshold) {
-                    labels.add(e.getKey());
+                    labels.add((double) e.getKey());
                 }
             }
-            multiLabels[i] = labels.stream().mapToInt(Integer::intValue).toArray();
+            multiLabels[i] = labels.stream().mapToDouble(Double::doubleValue).toArray();
         }
         return multiLabels;
     }
@@ -451,7 +451,7 @@ public class SVM extends Model {
         this.denseTestDataset = dataset;
         this.sparse = false;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         // Restore state
@@ -474,7 +474,7 @@ public class SVM extends Model {
         this.sparseTestDataset = dataset;
         this.sparse = true;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         // Restore state
@@ -627,21 +627,22 @@ public class SVM extends Model {
         }
     }
 
-    private Map<String, Double> calculateMetrics(int[] predictions, double[] labels, String[] metrics) {
+    private Map<String, Double> calculateMetrics(double[] predictions, double[] labels, String[] metrics) {
         Map<String, Double> results = new HashMap<>();
         int[] actualInt = Arrays.stream(labels).mapToInt(d -> (int) d).toArray();
-        double[] predDouble = Arrays.stream(predictions).asDoubleStream().toArray();
+        int[] predInt = Arrays.stream(predictions).mapToInt(d -> (int) d).toArray();
+        double[] predDouble = predictions;
 
         for (String metric : metrics) {
             switch (metric.toLowerCase()) {
                 case "accuracy":
-                    results.put("accuracy", Metrics.accuracy(predictions, actualInt));
+                    results.put("accuracy", Metrics.accuracy(predInt, actualInt));
                     break;
                 case "precision":
-                    results.put("precision", Metrics.precision(predictions, actualInt, 1));
+                    results.put("precision", Metrics.precision(predInt, actualInt, 1));
                     break;
                 case "recall":
-                    results.put("recall", Metrics.recall(predictions, actualInt, 1));
+                    results.put("recall", Metrics.recall(predInt, actualInt, 1));
                     break;
                 case "mse":
                     results.put("mse", Metrics.mse(predDouble, labels));

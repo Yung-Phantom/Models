@@ -88,4 +88,22 @@ public class Metrics {
         }
         return sum / predictions.length;
     }
+
+    public static double r2(double[] predictions, double[] labels) {
+        if (predictions.length != labels.length || predictions.length == 0) {
+            throw new IllegalArgumentException("Predictions and labels must have same non-zero length");
+        }
+        double mean = 0.0;
+        for (double y : labels) mean += y;
+        mean /= labels.length;
+
+        double ssTot = 0.0, ssRes = 0.0;
+        for (int i = 0; i < predictions.length; i++) {
+            double y = labels[i];
+            double yHat = predictions[i];
+            ssTot += (y - mean) * (y - mean);
+            ssRes += (y - yHat) * (y - yHat);
+        }
+        return ssTot == 0.0 ? 0.0 : 1.0 - (ssRes / ssTot);
+    }
 }

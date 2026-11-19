@@ -361,13 +361,13 @@ public class NaiveBayes extends Model {
     }
 
     @Override
-    public int[] predictLabels() {
+    public double[] predictLabels() {
         if (nb == null)
             throw new IllegalStateException("Model must be fitted before prediction.");
 
         // Determine which dataset to predict on (Test set)
         int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
-        int[] predictions = new int[n];
+        double[] predictions = new double[n];
 
         for (int i = 0; i < n; i++) {
             Map<Integer, Double> probs = sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
@@ -394,14 +394,14 @@ public class NaiveBayes extends Model {
     }
 
     @Override
-    public int[][] predictMultiLabel(double threshold) {
+    public double[][] predictMultiLabel(double threshold) {
         List<Map<Integer, Double>> probs = predictProbabilities();
-        int[][] multiLabels = new int[probs.size()][];
+        double[][] multiLabels = new double[probs.size()][];
 
         for (int i = 0; i < probs.size(); i++) {
             multiLabels[i] = probs.get(i).entrySet().stream()
                     .filter(entry -> entry.getValue() >= threshold)
-                    .mapToInt(Map.Entry::getKey)
+                    .mapToDouble(entry -> (double) entry.getKey())
                     .toArray();
         }
         return multiLabels;
@@ -419,7 +419,7 @@ public class NaiveBayes extends Model {
         this.denseTestDataset = dataset;
         this.sparse = false;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         this.denseTestDataset = originalDenseTest;
@@ -449,7 +449,7 @@ public class NaiveBayes extends Model {
         this.sparseTestDataset = dataset;
         this.sparse = true;
 
-        int[] predictions = predictLabels();
+        double[] predictions = predictLabels();
         Map<String, Double> results = calculateMetrics(predictions, labels, metrics);
 
         // Restore state
@@ -567,21 +567,22 @@ public class NaiveBayes extends Model {
                 .orElseThrow(() -> new RuntimeException("Probability map is empty"));
     }
 
-    private Map<String, Double> calculateMetrics(int[] predictions, double[] labels, String[] metrics) {
+    private Map<String, Double> calculateMetrics(double[] predictions, double[] labels, String[] metrics) {
         Map<String, Double> results = new HashMap<>();
         int[] actualInt = Arrays.stream(labels).mapToInt(d -> (int) d).toArray();
-        double[] predDouble = Arrays.stream(predictions).asDoubleStream().toArray();
+        int[] predInt = Arrays.stream(predictions).mapToInt(d -> (int) d).toArray();
+        double[] predDouble = predictions;
 
         for (String metric : metrics) {
             switch (metric.toLowerCase()) {
                 case "accuracy":
-                    results.put("accuracy", Metrics.accuracy(predictions, actualInt));
+                    results.put("accuracy", Metrics.accuracy(predInt, actualInt));
                     break;
                 case "precision":
-                    results.put("precision", Metrics.precision(predictions, actualInt, 1));
+                    results.put("precision", Metrics.precision(predInt, actualInt, 1));
                     break;
                 case "recall":
-                    results.put("recall", Metrics.recall(predictions, actualInt, 1));
+                    results.put("recall", Metrics.recall(predInt, actualInt, 1));
                     break;
                 case "mse":
                     results.put("mse", Metrics.mse(predDouble, labels));
