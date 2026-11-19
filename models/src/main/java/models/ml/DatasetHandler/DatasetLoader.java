@@ -69,6 +69,30 @@ public class DatasetLoader {
         this(path, DatasetConfig.DEFAULT, labelColumn, delimiter);
     }
 
+    public DatasetLoader(String path, DatasetConfig config, String labelColumn, Character delimiter, boolean numericLabel)
+            throws IOException, SQLException {
+        String ext = getExtension(path);
+
+        switch (ext) {
+            case "csv":
+            case "tsv":
+            case "txt":
+                dataset = loadCsv(path, config, labelColumn, delimiter, numericLabel);
+                break;
+
+            case "json":
+                dataset = loadJson(path, config, labelColumn, numericLabel);
+                break;
+
+            case "sqlite":
+                dataset = loadSqlite(path, labelColumn);
+                break;
+
+            default:
+                throw new IOException("Unsupported format: " + ext);
+        }
+    }
+
     public Dataset getDataset() {
         return dataset;
     }
@@ -87,6 +111,13 @@ public class DatasetLoader {
         if (strategy == null)
             strategy = "random";
 
+        // For stratified, check if we should fall back to random based on data
+        if ("stratified".equalsIgnoreCase(strategy) || "s".equalsIgnoreCase(strategy)) {
+            if (hasContinuousLabels()) {
+                return randomSplit(trainPercent, seed);
+            }
+        }
+
         switch (strategy.toLowerCase()) {
             case "stratified":
             case "s":
@@ -103,6 +134,41 @@ public class DatasetLoader {
         }
     }
 
+    /**
+     * Checks if the original labels (before mapping to indices) contain non-integer values (continuous targets).
+     * Uses labelToIndex keys which are the raw label strings. If no label column was specified,
+     * checks the last column of the data matrix.
+     */
+    private boolean hasContinuousLabels() {
+        // Check original label strings from labelToIndex
+        for (String labelStr : dataset.labelToIndex.keySet()) {
+            try {
+                double labelVal = Double.parseDouble(labelStr);
+                if (labelVal != Math.floor(labelVal)) {
+                    return true;
+                }
+            } catch (NumberFormatException e) {
+                // Non-numeric label, treat as categorical
+            }
+        }
+
+        // If no label column was specified, check the last data column
+        if (dataset.labelToIndex.isEmpty()) {
+            double[][] data = dataset.data;
+            if (data.length == 0 || data[0].length == 0) {
+                return false;
+            }
+            int labelIndex = data[0].length - 1;
+            for (double[] row : data) {
+                double label = row[labelIndex];
+                if (label != Math.floor(label)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public DatasetSplit randomSplit(double trainPercent) {
         return randomSplit(trainPercent, 0);
     }
@@ -113,7 +179,7 @@ public class DatasetLoader {
         int trainSize = (trainPercent <= 1.0) ? (int) (n * trainPercent) : (int) (n * trainPercent / 100.0);
 
         List<double[]> shuffled = new ArrayList<>(Arrays.asList(data));
-        Random rand = (seed != 0) ? new Random(seed) : new Random();
+        Random rand = new Random(seed);
         Collections.shuffle(shuffled, rand);
 
         double[][] train = shuffled.subList(0, trainSize)
@@ -130,28 +196,13 @@ public class DatasetLoader {
     }
 
     public DatasetSplit stratifiedSplit(double trainPercent, long seed) {
-        double[][] data = dataset.data;
-        int labelIndex = data[0].length - 1;
-
-        // Check if original labels (before labelMap conversion) are non-integer (regression targets)
-        // labelToIndex maps original label strings to integer indices
-        boolean hasContinuousLabels = false;
-        for (String labelStr : dataset.labelToIndex.keySet()) {
-            try {
-                double labelVal = Double.parseDouble(labelStr);
-                if (labelVal != Math.floor(labelVal)) {
-                    hasContinuousLabels = true;
-                    break;
-                }
-            } catch (NumberFormatException e) {
-                // Non-numeric label, treat as categorical
-            }
-        }
-
-        if (hasContinuousLabels) {
-            // Continuous label detected, use random split instead
+        // If continuous labels detected, fall back to random split
+        if (hasContinuousLabels()) {
             return randomSplit(trainPercent, seed);
         }
+
+        double[][] data = dataset.data;
+        int labelIndex = data[0].length - 1;
 
         Map<Double, List<double[]>> byLabel = new LinkedHashMap<>();
 
@@ -162,7 +213,7 @@ public class DatasetLoader {
 
         List<double[]> train = new ArrayList<>();
         List<double[]> test = new ArrayList<>();
-        Random rand = (seed != 0) ? new Random(seed) : new Random();
+        Random rand = new Random(seed);
 
         for (List<double[]> rows : byLabel.values()) {
             Collections.shuffle(rows, rand);
@@ -210,13 +261,19 @@ public class DatasetLoader {
     public static Dataset loadCsv(String path, DatasetConfig config, String labelColumn, Character delimiter)
             throws IOException {
 
+        return loadCsv(path, config, labelColumn, delimiter, false);
+    }
+
+    public static Dataset loadCsv(String path, DatasetConfig config, String labelColumn, Character delimiter, boolean numericLabel)
+            throws IOException {
+
         // Use character-level reader for large files
         List<String[]> rows = parseCsvStream(path, delimiter);
         if (rows.isEmpty()) {
             return new Dataset(new double[0][0], new String[0], Map.of());
         }
 
-        return parseTable(rows, config, labelColumn);
+        return parseTable(rows, config, labelColumn, numericLabel);
     }
 
     // Parse CSV with character-level reader (handles quoted fields with delimiters, quotes, newlines)
@@ -356,6 +413,15 @@ public class DatasetLoader {
             String labelColumn)
             throws IOException {
 
+        return loadJson(path, config, labelColumn, false);
+    }
+
+    public static Dataset loadJson(String path,
+            DatasetConfig config,
+            String labelColumn,
+            boolean numericLabel)
+            throws IOException {
+
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(path), StandardCharsets.UTF_8)) {
             JsonParser parser = new JsonParser(reader);
             List<Map<String, String>> objects = parser.parseArray();
@@ -364,13 +430,22 @@ public class DatasetLoader {
                 return new Dataset(new double[0][0], new String[0], Map.of());
             }
 
+            // Use first object's keys as the header (column order)
+            List<String> header = new ArrayList<>(objects.get(0).keySet());
+
             List<String[]> rows = new ArrayList<>();
-            rows.add(objects.get(0).keySet().toArray(new String[0]));
+            rows.add(header.toArray(new String[0]));
 
-            for (Map<String, String> obj : objects)
-                rows.add(obj.values().toArray(new String[0]));
+            for (Map<String, String> obj : objects) {
+                String[] row = new String[header.size()];
+                for (int i = 0; i < header.size(); i++) {
+                    String key = header.get(i);
+                    row[i] = obj.getOrDefault(key, "");
+                }
+                rows.add(row);
+            }
 
-            return parseTable(rows, config, labelColumn);
+            return parseTable(rows, config, labelColumn, numericLabel);
         }
     }
 
@@ -556,6 +631,10 @@ public class DatasetLoader {
     // ==================== Table Parsing ====================
 
     public static Dataset parseTable(List<String[]> rows, DatasetConfig config, String labelColumn) {
+        return parseTable(rows, config, labelColumn, false);
+    }
+
+    public static Dataset parseTable(List<String[]> rows, DatasetConfig config, String labelColumn, boolean numericLabel) {
 
         String[] header;
         if (config.hasHeader) {
@@ -598,8 +677,19 @@ public class DatasetLoader {
 
             if (labelIdx >= 0) {
                 String label = row[labelIdx];
-                labelMap.putIfAbsent(label, labelMap.size());
-                nums.add(labelMap.get(label).doubleValue());
+                if (numericLabel) {
+                    // Numeric label: keep parsed double value, labelToIndex stays empty
+                    try {
+                        double labelVal = Double.parseDouble(label.trim());
+                        nums.add(labelVal);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Non-numeric label at row " + (i + 1) + ": " + label);
+                    }
+                } else {
+                    // Categorical label: map to index
+                    labelMap.putIfAbsent(label, labelMap.size());
+                    nums.add(labelMap.get(label).doubleValue());
+                }
             }
 
             data.add(nums.stream().mapToDouble(Double::doubleValue).toArray());
