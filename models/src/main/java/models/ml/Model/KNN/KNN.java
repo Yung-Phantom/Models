@@ -419,9 +419,6 @@ public class KNN extends Model {
         if (row == null) {
             throw new IllegalArgumentException("Row cannot be null");
         }
-        if (row.isEmpty()) {
-            throw new IllegalArgumentException("Row cannot be empty");
-        }
         return knn.majority(row, k);
     }
 

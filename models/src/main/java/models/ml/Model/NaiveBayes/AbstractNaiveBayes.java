@@ -227,6 +227,22 @@ public class AbstractNaiveBayes {
     private Map<Integer, Double> logPosteriorsSparse(Map<Integer, Double> x) {
         Map<Integer, Double> out = new HashMap<>();
 
+        // Validate input
+        if (x == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        // Empty row is valid - predicts from priors alone
+        for (Map.Entry<Integer, Double> e : x.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0) {
+                throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
+            }
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+            }
+        }
+
         for (int i = 0; i < classes.length; i++) {
             int c = classes[i];
             double logLike;
@@ -282,8 +298,12 @@ public class AbstractNaiveBayes {
 
         double sum = 0;
         for (var e : x.entrySet()) {
-            sum += e.getValue()
-                    * Math.log((counts[e.getKey()] + alpha) / (total + alpha * V));
+            int feature = e.getKey();
+            if (feature >= 0 && feature < numFeatures) {
+                sum += e.getValue()
+                        * Math.log((counts[feature] + alpha) / (total + alpha * V));
+            }
+            // Ignore keys >= numFeatures (unseen features contribute nothing)
         }
         return sum;
     }
@@ -308,9 +328,12 @@ public class AbstractNaiveBayes {
 
         for (var entry : x.entrySet()) {
             int feature = entry.getKey();
-            double p = (counts[feature] + alpha) / (Nc + 2 * alpha);
-            p = Math.max(p, 1e-12);
-            sum += Math.log(p); // feature is present
+            if (feature >= 0 && feature < numFeatures) {
+                double p = (counts[feature] + alpha) / (Nc + 2 * alpha);
+                p = Math.max(p, 1e-12);
+                sum += Math.log(p); // feature is present
+            }
+            // Ignore keys >= numFeatures (unseen features contribute nothing)
         }
 
         // For features not present in the sparse data, use (1 - p) (feature is absent)

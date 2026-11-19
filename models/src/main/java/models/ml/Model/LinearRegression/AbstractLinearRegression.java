@@ -240,14 +240,12 @@ public class AbstractLinearRegression {
             throw new IllegalStateException("Sparse prediction called in dense mode");
         if (x == null)
             throw new IllegalArgumentException("Row cannot be null");
-        if (x.isEmpty())
-            throw new IllegalArgumentException("Row cannot be empty");
-
+        // Empty row is valid - predicts from bias alone
         for (Map.Entry<Integer, Double> e : x.entrySet()) {
             int key = e.getKey();
             double val = e.getValue();
-            if (key < 0 || key >= numFeatures) {
-                throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
+            if (key < 0) {
+                throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
             }
             if (Double.isNaN(val) || Double.isInfinite(val)) {
                 throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
@@ -256,7 +254,11 @@ public class AbstractLinearRegression {
 
         double y = weights[0];
         for (var e : x.entrySet()) {
-            y += weights[e.getKey() + 1] * e.getValue();
+            int idx = e.getKey();
+            if (idx >= 0 && idx < numFeatures) {
+                y += weights[idx + 1] * e.getValue();
+            }
+            // Ignore keys >= numFeatures (unseen features contribute nothing)
         }
         return y;
     }

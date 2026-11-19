@@ -336,14 +336,12 @@ public class AbstractLogisticRegression {
             throw new IllegalStateException("Sparse prediction called in dense mode");
         if (row == null)
             throw new IllegalArgumentException("Row cannot be null");
-        if (row.isEmpty())
-            throw new IllegalArgumentException("Row cannot be empty");
-
+        // Empty row is valid - predicts from bias alone
         for (Map.Entry<Integer, Double> e : row.entrySet()) {
             int key = e.getKey();
             double val = e.getValue();
-            if (key < 0 || key >= numFeatures) {
-                throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
+            if (key < 0) {
+                throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
             }
             if (Double.isNaN(val) || Double.isInfinite(val)) {
                 throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");

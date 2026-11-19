@@ -395,8 +395,6 @@ public class NaiveBayes extends Model {
         requireSparse();
         if (row == null)
             throw new IllegalArgumentException("Row cannot be null");
-        if (row.isEmpty())
-            throw new IllegalArgumentException("Row cannot be empty");
         Map<Integer, Double> probs = nb.computeProbabilities(row);
         return getMaxProbabilityClass(probs);
     }

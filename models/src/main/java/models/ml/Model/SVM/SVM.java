@@ -416,9 +416,6 @@ public class SVM extends Model {
         if (row == null) {
             throw new IllegalArgumentException("Row cannot be null");
         }
-        if (row.isEmpty()) {
-            throw new IllegalArgumentException("Row cannot be empty");
-        }
         return svm.predictSparse(row);
     }
 

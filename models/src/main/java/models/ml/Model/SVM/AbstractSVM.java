@@ -290,8 +290,14 @@ public class AbstractSVM {
 
     protected double linearDecisionSparse(double[] w, Map<Integer, Double> x, double b) {
         double sum = 0.0;
-        for (Map.Entry<Integer, Double> entry : x.entrySet())
-            sum += w[entry.getKey()] * entry.getValue();
+        for (Map.Entry<Integer, Double> entry : x.entrySet()) {
+            int idx = entry.getKey();
+            if (idx >= 0 && idx < numFeatures) {
+                sum += w[idx] * entry.getValue();
+            }
+            // Ignore keys >= numFeatures (unseen features contribute nothing)
+            // Negative keys will be caught by validation in predictSparse
+        }
         return sum + b;
     }
 
@@ -346,9 +352,15 @@ public class AbstractSVM {
     public int predictSparse(Map<Integer, Double> row) {
         if (row == null)
             throw new IllegalArgumentException("Sparse row cannot be null.");
-
-        if (row.isEmpty())
-            throw new IllegalArgumentException("Sparse row cannot be empty.");
+        // Empty row is valid - predicts from bias alone
+        for (Map.Entry<Integer, Double> e : row.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0)
+                throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
+            if (Double.isNaN(val) || Double.isInfinite(val))
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+        }
         int raw = linearDecisionSparse(weights, row, bias) >= 0 ? 1 : -1;
         return restoreLabel(raw);
     }

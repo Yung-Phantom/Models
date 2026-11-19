@@ -378,9 +378,7 @@ public class AbstractKNN {
         if (row == null) {
             throw new IllegalArgumentException("Row cannot be null");
         }
-        if (row.isEmpty()) {
-            throw new IllegalArgumentException("Row cannot be empty");
-        }
+        // Empty row is valid - predicts from zero vector
         for (Map.Entry<Integer, Double> e : row.entrySet()) {
             int key = e.getKey();
             double val = e.getValue();

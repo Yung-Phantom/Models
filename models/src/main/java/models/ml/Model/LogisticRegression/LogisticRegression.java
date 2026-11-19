@@ -433,8 +433,6 @@ public class LogisticRegression extends Model {
         requireSparse();
         if (row == null)
             throw new IllegalArgumentException("Row cannot be null");
-        if (row.isEmpty())
-            throw new IllegalArgumentException("Row cannot be empty");
         return lr.predictClass(row);
     }
 
