@@ -382,12 +382,47 @@ public class KNN extends Model {
 
     @Override
     public double[] predictLabels() {
-        int n = this.sparse ? this.sparseTestDataset.size() : this.denseTestDataset.length;
+        if (knn == null) {
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        }
+
+        int n = sparse ? sparseTestDataset.size() : denseTestDataset.length;
         double[] predictions = new double[n];
+
         for (int i = 0; i < n; i++) {
-            predictions[i] = majority(i);
+            predictions[i] = sparse ? predict(sparseTestDataset.get(i)) : predict(denseTestDataset[i]);
         }
         return predictions;
+    }
+
+    @Override
+    public double predict(double[] row) {
+        if (knn == null) {
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        }
+        requireDense();
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.length != knn.numFeatures) {
+            throw new IllegalArgumentException("Row must have exactly " + knn.numFeatures + " features");
+        }
+        return knn.majority(row, k);
+    }
+
+    @Override
+    public double predict(Map<Integer, Double> row) {
+        if (knn == null) {
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        }
+        requireSparse();
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.isEmpty()) {
+            throw new IllegalArgumentException("Row cannot be empty");
+        }
+        return knn.majority(row, k);
     }
 
     @Override
@@ -535,9 +570,9 @@ public class KNN extends Model {
     @Override
     public void refresh() {
         if (!sparse && denseTrainingDataset != null) {
-            this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p);
+            this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p, this.trainingLabels);
         } else if (sparse && sparseTrainingDataset != null) {
-            this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p);
+            this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p, this.trainingLabels);
         } else {
             throw new IllegalArgumentException("Dataset cannot be null.");
         }
@@ -569,11 +604,11 @@ public class KNN extends Model {
     }
 
     private void initDenseKNN() {
-        this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p);
+        this.knn = new AbstractKNN(this.denseTrainingDataset, this.method, this.p, this.trainingLabels);
     }
 
     private void initSparseKNN() {
-        this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p);
+        this.knn = new AbstractKNN(this.sparseTrainingDataset, this.method, this.p, this.trainingLabels);
     }
 
     public LinkedHashMap<Integer, Double> getNeighboursWithDistance(int queryIndex) {
@@ -603,18 +638,11 @@ public class KNN extends Model {
     }
 
     public int majority(int queryIndex) {
-        Map<Integer, Double> neighbours = getNeighboursWithDistance(queryIndex);
-        Map<Integer, Integer> counts = new HashMap<>();
-
-        for (int idx : neighbours.keySet()) {
-            int label = (int) trainingLabels[idx];
-            counts.put(label, counts.getOrDefault(label, 0) + 1);
+        if (sparse) {
+            return (int) predict(sparseTestDataset.get(queryIndex));
+        } else {
+            return (int) predict(denseTestDataset[queryIndex]);
         }
-
-        return counts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .get()
-                .getKey();
     }
 
     public Map<Integer, Double> probability(int queryIndex) {

@@ -261,6 +261,10 @@ public abstract class Model {
 
     public abstract double[] predictLabels();
 
+    public abstract double predict(double[] row);
+
+    public abstract double predict(Map<Integer, Double> row);
+
     public abstract List<Map<Integer, Double>> predictProbabilities();
 
     public abstract double[][] predictMultiLabel(double threshold);

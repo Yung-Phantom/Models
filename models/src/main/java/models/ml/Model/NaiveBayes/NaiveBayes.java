@@ -370,12 +370,35 @@ public class NaiveBayes extends Model {
         double[] predictions = new double[n];
 
         for (int i = 0; i < n; i++) {
-            Map<Integer, Double> probs = sparse ? nb.computeProbabilities(sparseTestDataset.get(i))
-                    : nb.computeProbabilities(denseTestDataset[i]);
-
-            predictions[i] = getMaxProbabilityClass(probs);
+            predictions[i] = sparse ? predict(sparseTestDataset.get(i)) : predict(denseTestDataset[i]);
         }
         return predictions;
+    }
+
+    @Override
+    public double predict(double[] row) {
+        if (nb == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        requireDense();
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (row.length != nb.numFeatures)
+            throw new IllegalArgumentException("Row must have exactly " + nb.numFeatures + " features");
+        Map<Integer, Double> probs = nb.computeProbabilities(row);
+        return getMaxProbabilityClass(probs);
+    }
+
+    @Override
+    public double predict(Map<Integer, Double> row) {
+        if (nb == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        requireSparse();
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (row.isEmpty())
+            throw new IllegalArgumentException("Row cannot be empty");
+        Map<Integer, Double> probs = nb.computeProbabilities(row);
+        return getMaxProbabilityClass(probs);
     }
 
     @Override

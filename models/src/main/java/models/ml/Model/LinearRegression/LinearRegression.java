@@ -416,9 +416,33 @@ public class LinearRegression extends Model {
         double[] predictions = new double[n];
 
         for (int i = 0; i < n; i++) {
-            predictions[i] = sparse ? lr.predictSparseRow(sparseTestDataset.get(i)) : lr.predictRow(denseTestDataset[i]);
+            predictions[i] = sparse ? predict(sparseTestDataset.get(i)) : predict(denseTestDataset[i]);
         }
         return predictions;
+    }
+
+    @Override
+    public double predict(double[] row) {
+        if (lr == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        requireDense();
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (row.length < lr.numFeatures)
+            throw new IllegalArgumentException("Row must have at least " + lr.numFeatures + " features");
+        return lr.predictRow(row);
+    }
+
+    @Override
+    public double predict(Map<Integer, Double> row) {
+        if (lr == null)
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        requireSparse();
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        if (row.isEmpty())
+            throw new IllegalArgumentException("Row cannot be empty");
+        return lr.predictSparseRow(row);
     }
 
     @Override

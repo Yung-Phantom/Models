@@ -387,11 +387,39 @@ public class SVM extends Model {
         double[] predictions = new double[n];
 
         for (int i = 0; i < n; i++) {
-            predictions[i] = sparse
-                    ? svm.predictSparse(sparseTestDataset.get(i))
-                    : svm.predict(denseTestDataset[i]);
+            predictions[i] = sparse ? predict(sparseTestDataset.get(i)) : predict(denseTestDataset[i]);
         }
         return predictions;
+    }
+
+    @Override
+    public double predict(double[] row) {
+        if (svm == null) {
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        }
+        requireDense();
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.length != svm.numFeatures) {
+            throw new IllegalArgumentException("Row must have exactly " + svm.numFeatures + " features");
+        }
+        return svm.predict(row);
+    }
+
+    @Override
+    public double predict(Map<Integer, Double> row) {
+        if (svm == null) {
+            throw new IllegalStateException("Model must be fitted before prediction.");
+        }
+        requireSparse();
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.isEmpty()) {
+            throw new IllegalArgumentException("Row cannot be empty");
+        }
+        return svm.predictSparse(row);
     }
 
     @Override

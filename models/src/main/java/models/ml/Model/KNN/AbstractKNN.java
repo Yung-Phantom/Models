@@ -13,10 +13,12 @@ public class AbstractKNN {
     public int numSamples;
     public int numFeatures;
 
+    public double[] trainingLabels;
+
     // public double[] weights;
     public double[][] distances;
 
-    public AbstractKNN(List<Map<Integer, Double>> sparseDataset, String method, int p) {
+    public AbstractKNN(List<Map<Integer, Double>> sparseDataset, String method, int p, double[] trainingLabels) {
         
         this.sparse = true;
         if (method == null)
@@ -39,6 +41,7 @@ public class AbstractKNN {
 
         this.sparseDataset = sparseDataset;
         this.numSamples = sparseDataset.size();
+        this.trainingLabels = trainingLabels;
 
         this.method = method.trim().toLowerCase();
         if (!Set.of("euclidean", "manhattan", "minkowski", "cosine").contains(this.method))
@@ -47,7 +50,7 @@ public class AbstractKNN {
         this.p = p;
     }
 
-    public AbstractKNN(double[][] dataset, String method, int p) {
+    public AbstractKNN(double[][] dataset, String method, int p, double[] trainingLabels) {
         
         this.sparse = false;
         if (dataset == null || dataset.length == 0)
@@ -72,6 +75,7 @@ public class AbstractKNN {
         }
 
         this.numSamples = dataset.length;
+        this.trainingLabels = trainingLabels;
 
         this.method = method.trim().toLowerCase();
         if (!Set.of("euclidean", "manhattan", "minkowski", "cosine").contains(this.method))
@@ -331,4 +335,74 @@ public class AbstractKNN {
         return out;
     }
 
+    public int majority(double[] row, int k) {
+        if (sparse) {
+            throw new IllegalStateException("Dense prediction called in sparse mode");
+        }
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.length != numFeatures) {
+            throw new IllegalArgumentException("Row must have exactly " + numFeatures + " features");
+        }
+        for (double val : row) {
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Row contains NaN or Infinity");
+            }
+        }
+
+        double[][] distances = new double[1][numSamples];
+        for (int i = 0; i < numSamples; i++) {
+            distances[0][i] = distance(row, dataset[i]);
+        }
+        return majorityFromDistances(distances[0], k);
+    }
+
+    public int majority(Map<Integer, Double> row, int k) {
+        if (!sparse) {
+            throw new IllegalStateException("Sparse prediction called in dense mode");
+        }
+        if (row == null) {
+            throw new IllegalArgumentException("Row cannot be null");
+        }
+        if (row.isEmpty()) {
+            throw new IllegalArgumentException("Row cannot be empty");
+        }
+        for (Map.Entry<Integer, Double> e : row.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0 || key >= numFeatures) {
+                throw new IllegalArgumentException("Sparse vector contains invalid feature index: " + key);
+            }
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+            }
+        }
+
+        double[][] distances = new double[1][numSamples];
+        for (int i = 0; i < numSamples; i++) {
+            distances[0][i] = distance(row, sparseDataset.get(i));
+        }
+        return majorityFromDistances(distances[0], k);
+    }
+
+    private int majorityFromDistances(double[] distances, int k) {
+        Integer[] indices = new Integer[numSamples];
+        for (int i = 0; i < numSamples; i++) {
+            indices[i] = i;
+        }
+        java.util.Arrays.sort(indices, (a, b) -> Double.compare(distances[a], distances[b]));
+
+        Map<Integer, Integer> counts = new HashMap<>();
+        for (int i = 0; i < Math.min(k, numSamples); i++) {
+            int idx = indices[i];
+            int label = (int) trainingLabels[idx];
+            counts.put(label, counts.getOrDefault(label, 0) + 1);
+        }
+
+        return counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .get()
+                .getKey();
+    }
 }
