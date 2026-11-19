@@ -100,37 +100,41 @@ public class DatasetLoader {
     // ==================== Split methods ====================
 
     public DatasetSplit split(double trainPercent) {
-        return split(trainPercent, "s", 0);
+        return split(trainPercent, "s", new Random());
     }
 
     public DatasetSplit split(double trainPercent, String strategy) {
-        return split(trainPercent, strategy, 0);
+        return split(trainPercent, strategy, new Random());
     }
 
     public DatasetSplit split(double trainPercent, String strategy, long seed) {
+        return split(trainPercent, strategy, new Random(seed));
+    }
+
+    private DatasetSplit split(double trainPercent, String strategy, Random rand) {
         if (strategy == null)
             strategy = "random";
 
         // For stratified, check if we should fall back to random based on data
         if ("stratified".equalsIgnoreCase(strategy) || "s".equalsIgnoreCase(strategy)) {
             if (hasContinuousLabels()) {
-                return randomSplit(trainPercent, seed);
+                return randomSplit(trainPercent, rand);
             }
         }
 
         switch (strategy.toLowerCase()) {
             case "stratified":
             case "s":
-                return stratifiedSplit(trainPercent, seed);
+                return stratifiedSplit(trainPercent, rand);
 
             case "timeseries":
             case "t":
-                return timeSeriesSplit(trainPercent, seed);
+                return timeSeriesSplit(trainPercent, rand);
 
             case "random":
             case "r":
             default:
-                return randomSplit(trainPercent, seed);
+                return randomSplit(trainPercent, rand);
         }
     }
 
@@ -170,16 +174,19 @@ public class DatasetLoader {
     }
 
     public DatasetSplit randomSplit(double trainPercent) {
-        return randomSplit(trainPercent, 0);
+        return randomSplit(trainPercent, new Random());
     }
 
     public DatasetSplit randomSplit(double trainPercent, long seed) {
+        return randomSplit(trainPercent, new Random(seed));
+    }
+
+    private DatasetSplit randomSplit(double trainPercent, Random rand) {
         double[][] data = dataset.data;
         int n = data.length;
         int trainSize = (trainPercent <= 1.0) ? (int) (n * trainPercent) : (int) (n * trainPercent / 100.0);
 
         List<double[]> shuffled = new ArrayList<>(Arrays.asList(data));
-        Random rand = new Random(seed);
         Collections.shuffle(shuffled, rand);
 
         double[][] train = shuffled.subList(0, trainSize)
@@ -192,13 +199,17 @@ public class DatasetLoader {
     }
 
     public DatasetSplit stratifiedSplit(double trainPercent) {
-        return stratifiedSplit(trainPercent, 0);
+        return stratifiedSplit(trainPercent, new Random());
     }
 
     public DatasetSplit stratifiedSplit(double trainPercent, long seed) {
+        return stratifiedSplit(trainPercent, new Random(seed));
+    }
+
+    private DatasetSplit stratifiedSplit(double trainPercent, Random rand) {
         // If continuous labels detected, fall back to random split
         if (hasContinuousLabels()) {
-            return randomSplit(trainPercent, seed);
+            return randomSplit(trainPercent, rand);
         }
 
         double[][] data = dataset.data;
@@ -213,7 +224,6 @@ public class DatasetLoader {
 
         List<double[]> train = new ArrayList<>();
         List<double[]> test = new ArrayList<>();
-        Random rand = new Random(seed);
 
         for (List<double[]> rows : byLabel.values()) {
             Collections.shuffle(rows, rand);
@@ -242,10 +252,14 @@ public class DatasetLoader {
     }
 
     public DatasetSplit timeSeriesSplit(double trainPercent) {
-        return timeSeriesSplit(trainPercent, 0);
+        return timeSeriesSplit(trainPercent, new Random());
     }
 
     public DatasetSplit timeSeriesSplit(double trainPercent, long seed) {
+        return timeSeriesSplit(trainPercent, new Random(seed));
+    }
+
+    private DatasetSplit timeSeriesSplit(double trainPercent, Random rand) {
         double[][] data = dataset.data;
         int n = data.length;
         int trainSize = (trainPercent <= 1.0) ? (int) (n * trainPercent) : (int) (n * trainPercent / 100.0);
