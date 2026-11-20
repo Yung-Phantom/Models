@@ -2,7 +2,6 @@ package models.ml.Preprocessing.Text.Vectorizer;
 
 import models.ml.Utils.Json;
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TfidfVectorizer extends AbstractTextVectorizer {
@@ -13,7 +12,6 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
     private final boolean l2Normalize;
     Map<Integer, Integer> documentFrequencies;
     double[] idf;
-    private boolean fitted = false;
 
     public TfidfVectorizer() {
         this("\\b\\w+\\b", true, Collections.emptySet(), false, 1, -1, false, true, 1, 1);
@@ -128,20 +126,6 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
     }
 
     @Override
-    public void fit(List<String> docs) {
-        vocabulary.clear();
-        documentFrequencies.clear();
-        idf = null;
-        fitted = false;
-        super.fit(docs);
-    }
-
-    @Override
-    public boolean isFitted() {
-        return fitted;
-    }
-
-    @Override
     public String toJson() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("binary", binary);
@@ -163,7 +147,7 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
 
     public static TfidfVectorizer fromJson(String json) {
         if (json == null || json.isEmpty()) {
-            return new TfidfVectorizer();
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
         Object parsed = Json.parse(json);
@@ -175,13 +159,13 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
 
         // Required fields
         Boolean binaryObj = getBoolean(map, "binary");
-        Integer minDocFreqObj = getInteger(map, "minDocFreq");
-        Integer maxFeaturesObj = getInteger(map, "maxFeatures");
+        Object minDocFreqObj = map.get("minDocFreq");
+        Object maxFeaturesObj = map.get("maxFeatures");
         Boolean sublinearTfObj = getBoolean(map, "sublinearTf");
         Boolean l2NormalizeObj = getBoolean(map, "l2Normalize");
         Boolean toLowerCaseObj = getBoolean(map, "toLowerCase");
-        Integer ngramMinObj = getInteger(map, "ngramMin");
-        Integer ngramMaxObj = getInteger(map, "ngramMax");
+        Object ngramMinObj = map.get("ngramMin");
+        Object ngramMaxObj = map.get("ngramMax");
         String tokenPattern = getString(map, "tokenPattern");
         Object stopwordsObj = map.get("stopwords");
         Object idfObj = map.get("idf");
@@ -200,61 +184,79 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
         if (idfObj == null) throw new IllegalArgumentException("Missing required field: idf");
         if (vocabObj == null) throw new IllegalArgumentException("Missing required field: vocab");
 
-        boolean binary = binaryObj;
-        int minDocFreq = minDocFreqObj;
-        int maxFeatures = maxFeaturesObj;
-        boolean sublinearTf = sublinearTfObj;
-        boolean l2Normalize = l2NormalizeObj;
-        boolean toLowerCase = toLowerCaseObj;
-        int ngramMin = ngramMinObj;
-        int ngramMax = ngramMaxObj;
+        // Validate whole numbers for integer fields
+        requireInteger(map, "minDocFreq");
+        requireInteger(map, "maxFeatures");
+        requireInteger(map, "ngramMin");
+        requireInteger(map, "ngramMax");
+
+        int minDocFreq = ((Number) minDocFreqObj).intValue();
+        int maxFeatures = ((Number) maxFeaturesObj).intValue();
+        int ngramMin = ((Number) ngramMinObj).intValue();
+        int ngramMax = ((Number) ngramMaxObj).intValue();
 
         if (ngramMin < 1) throw new IllegalArgumentException("ngramMin must be >= 1");
         if (ngramMax < ngramMin) throw new IllegalArgumentException("ngramMax must be >= ngramMin");
 
         // Validate tokenPattern is a valid regex
         try {
-            Pattern.compile(tokenPattern);
+            java.util.regex.Pattern.compile(tokenPattern);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid tokenPattern regex: " + e.getMessage());
         }
 
-        // Parse stopwords
+        // Parse stopwords - must be a list of strings
         Set<String> stopwords = new HashSet<>();
         if (stopwordsObj instanceof List) {
             for (Object sw : (List<?>) stopwordsObj) {
-                if (sw instanceof String) {
-                    stopwords.add((String) sw);
+                if (!(sw instanceof String)) {
+                    throw new IllegalArgumentException("stopwords must be a list of strings");
                 }
+                stopwords.add((String) sw);
             }
+        } else if (stopwordsObj != null) {
+            throw new IllegalArgumentException("stopwords must be a list");
         }
 
-        // Parse IDF array
-        List<?> idfList = null;
-        if (idfObj instanceof List) {
-            idfList = (List<?>) idfObj;
-        }
+        // Parse IDF array - every entry must be finite
         double[] idf = null;
-        if (idfList != null) {
+        if (idfObj instanceof List) {
+            List<?> idfList = (List<?>) idfObj;
             idf = new double[idfList.size()];
             for (int i = 0; i < idfList.size(); i++) {
                 Object v = idfList.get(i);
-                if (v instanceof Number) {
-                    idf[i] = ((Number) v).doubleValue();
-                } else {
+                if (!(v instanceof Number)) {
                     throw new IllegalArgumentException("idf array must contain numbers");
                 }
+                double d = ((Number) v).doubleValue();
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    throw new IllegalArgumentException("idf entry at index " + i + " must be a finite number, got " + d);
+                }
+                idf[i] = d;
             }
+        } else {
+            throw new IllegalArgumentException("idf must be an array");
         }
 
-        // Parse vocabulary
+        // Parse vocabulary - must be object with whole number values
         Map<String, Integer> vocab = new LinkedHashMap<>();
         if (vocabObj instanceof Map) {
             for (Map.Entry<?, ?> e : ((Map<?, ?>) vocabObj).entrySet()) {
-                if (e.getKey() instanceof String && e.getValue() instanceof Number) {
-                    vocab.put((String) e.getKey(), ((Number) e.getValue()).intValue());
+                if (!(e.getKey() instanceof String)) {
+                    throw new IllegalArgumentException("Vocabulary key must be string");
                 }
+                Object val = e.getValue();
+                if (!(val instanceof Number)) {
+                    throw new IllegalArgumentException("Vocabulary value for key '" + e.getKey() + "' must be a whole number");
+                }
+                double d = ((Number) val).doubleValue();
+                if (d != Math.floor(d)) {
+                    throw new IllegalArgumentException("Vocabulary value for key '" + e.getKey() + "' must be a whole number, got " + d);
+                }
+                vocab.put((String) e.getKey(), ((Number) val).intValue());
             }
+        } else {
+            throw new IllegalArgumentException("vocab must be an object");
         }
 
         // Validate vocabulary indices are exactly 0..n-1 with no duplicates
@@ -277,32 +279,14 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
             throw new IllegalArgumentException("idf.length (" + idf.length + ") != vocab size (" + vocab.size() + ")");
         }
 
-        TfidfVectorizer vec = new TfidfVectorizer(tokenPattern, toLowerCase, stopwords,
-                binary, minDocFreq, maxFeatures, sublinearTf, l2Normalize, ngramMin, ngramMax);
+        TfidfVectorizer vec = new TfidfVectorizer(tokenPattern, getBoolean(map, "toLowerCase"), stopwords,
+                binaryObj, minDocFreq, maxFeatures, getBoolean(map, "sublinearTf"), getBoolean(map, "l2Normalize"), ngramMin, ngramMax);
         vec.vocabulary.putAll(vocab);
         vec.idf = idf;
         // If "fitted" field is missing, default to true if vocab is not empty (backward compatibility)
         vec.fitted = fittedObj != null ? fittedObj : !vocab.isEmpty();
 
         return vec;
-    }
-
-    private static Boolean getBoolean(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof Boolean) return (Boolean) v;
-        return null;
-    }
-
-    private static Integer getInteger(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof Number) return ((Number) v).intValue();
-        return null;
-    }
-
-    private static String getString(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof String) return (String) v;
-        return null;
     }
 
     private static List<Double> toDoubleList(double[] arr) {

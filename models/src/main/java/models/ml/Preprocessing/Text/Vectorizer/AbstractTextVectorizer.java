@@ -12,6 +12,7 @@ public abstract class AbstractTextVectorizer implements TextVectorizer {
     protected final int ngramMin;
     protected final int ngramMax;
     protected int numDocuments = 0;
+    protected boolean fitted = false;
 
     protected AbstractTextVectorizer(String tokenPattern, boolean toLowerCase, Set<String> stopwords,
                                      int ngramMin, int ngramMax) {
@@ -72,6 +73,7 @@ public abstract class AbstractTextVectorizer implements TextVectorizer {
             }
         }
         buildVocabulary(docs);
+        fitted = true;
     }
 
     @Override
@@ -117,90 +119,48 @@ public abstract class AbstractTextVectorizer implements TextVectorizer {
 
     @Override
     public boolean isFitted() {
-        return !vocabulary.isEmpty();
+        return fitted;
     }
 
-    /** Escape JSON string: backslash and double quote. */
-    protected static String escape(String s) {
-        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
+    // ==================== JSON parsing helpers ====================
+
+    protected static Boolean getBoolean(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof Boolean) return (Boolean) v;
+        return null;
     }
 
-    /** Unescape JSON string. */
-    protected static String unescape(String s) {
-        if (s == null) return "";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '\\' && i + 1 < s.length()) {
-                char next = s.charAt(i + 1);
-                if (next == '"' || next == '\\') {
-                    sb.append(next);
-                    i++;
-                } else {
-                    sb.append(c);
-                }
-            } else {
-                sb.append(c);
-            }
+    protected static Integer getInteger(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof Number) return ((Number) v).intValue();
+        return null;
+    }
+
+    protected static String getString(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof String) return (String) v;
+        return null;
+    }
+
+    protected static void requireInteger(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (!(v instanceof Number)) {
+            throw new IllegalArgumentException("Field '" + key + "' must be a whole number");
         }
-        return sb.toString();
-    }
-
-    /** Find matching brace in JSON object. */
-    protected static int findMatchingBrace(String s, int start) {
-        int depth = 0;
-        for (int i = start; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '{') depth++;
-            else if (c == '}') {
-                depth--;
-                if (depth == 0) return i;
-            }
+        double d = ((Number) v).doubleValue();
+        if (d != Math.floor(d)) {
+            throw new IllegalArgumentException("Field '" + key + "' must be a whole number, got " + d);
         }
-        return -1;
     }
 
-    /** Parse vocabulary from JSON body (key->index). Handles escaped quotes and backslashes. */
-    protected void parseVocabularyJson(String body) {
-        vocabulary.clear();
-        int pos = 0;
-        while (pos < body.length()) {
-            while (pos < body.length() && (Character.isWhitespace(body.charAt(pos)) || body.charAt(pos) == ',')) pos++;
-            if (pos >= body.length() || body.charAt(pos) != '"') break;
-            pos++; // skip opening quote
-            // Parse key with escape handling
-            StringBuilder keyBuilder = new StringBuilder();
-            while (pos < body.length()) {
-                char c = body.charAt(pos);
-                if (c == '\\' && pos + 1 < body.length()) {
-                    // Escape sequence
-                    pos++;
-                    char next = body.charAt(pos);
-                    if (next == '"' || next == '\\') {
-                        keyBuilder.append(next);
-                    } else {
-                        keyBuilder.append('\\').append(next);
-                    }
-                    pos++;
-                } else if (c == '"') {
-                    // End of key
-                    pos++;
-                    break;
-                } else {
-                    keyBuilder.append(c);
-                    pos++;
-                }
-            }
-            String key = keyBuilder.toString();
-
-            while (pos < body.length() && (Character.isWhitespace(body.charAt(pos)) || body.charAt(pos) == ':')) pos++;
-            int numStart = pos;
-            while (pos < body.length() && (Character.isDigit(body.charAt(pos)) || body.charAt(pos) == '-')) pos++;
-            if (numStart == pos) break;
-            try {
-                int idx = Integer.parseInt(body.substring(numStart, pos));
-                vocabulary.put(key, idx);
-            } catch (NumberFormatException ignored) {}
+    protected static void requireFiniteDouble(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (!(v instanceof Number)) {
+            throw new IllegalArgumentException("Field '" + key + "' must be a number");
+        }
+        double d = ((Number) v).doubleValue();
+        if (Double.isNaN(d) || Double.isInfinite(d)) {
+            throw new IllegalArgumentException("Field '" + key + "' must be a finite number, got " + d);
         }
     }
 }

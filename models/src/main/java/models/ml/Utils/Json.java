@@ -3,9 +3,20 @@ package models.ml.Utils;
 import java.util.*;
 
 public class Json {
+    private static final int MAX_NESTING_DEPTH = 256;
+
+    private static class ParseException extends RuntimeException {
+        final int position;
+        ParseException(String message, int position) {
+            super(message + " at position " + position);
+            this.position = position;
+        }
+    }
+
     private static class Parser {
         private final String s;
         private int pos = 0;
+        private int depth = 0;
 
         Parser(String s) {
             this.s = s;
@@ -17,9 +28,15 @@ public class Json {
             }
         }
 
-        Object parse() throws Exception {
+        private void checkDepth() {
+            if (depth > MAX_NESTING_DEPTH) {
+                throw new ParseException("Maximum nesting depth exceeded", pos);
+            }
+        }
+
+        Object parse() {
             skipWhitespace();
-            if (pos >= s.length()) throw new Exception("Unexpected end of input");
+            if (pos >= s.length()) throw new ParseException("Unexpected end of input", pos);
             char c = s.charAt(pos);
             if (c == '{') return parseObject();
             if (c == '[') return parseArray();
@@ -29,66 +46,74 @@ public class Json {
             return parseNumber();
         }
 
-        private Map<String, Object> parseObject() throws Exception {
+        private Map<String, Object> parseObject() {
+            depth++;
+            checkDepth();
             Map<String, Object> map = new LinkedHashMap<>();
             pos++; // skip '{'
             skipWhitespace();
             if (pos < s.length() && s.charAt(pos) == '}') {
                 pos++;
+                depth--;
                 return map;
             }
             while (true) {
                 skipWhitespace();
                 if (pos >= s.length() || s.charAt(pos) != '"') {
-                    throw new Exception("Expected string key at position " + pos);
+                    throw new ParseException("Expected string key", pos);
                 }
                 String key = parseString();
                 skipWhitespace();
                 if (pos >= s.length() || s.charAt(pos) != ':') {
-                    throw new Exception("Expected ':' at position " + pos);
+                    throw new ParseException("Expected ':'", pos);
                 }
                 pos++;
                 Object value = parse();
                 map.put(key, value);
                 skipWhitespace();
-                if (pos >= s.length()) throw new Exception("Unexpected end of input in object");
+                if (pos >= s.length()) throw new ParseException("Unexpected end of input in object", pos);
                 char c = s.charAt(pos);
                 if (c == '}') {
                     pos++;
+                    depth--;
                     break;
                 }
-                if (c != ',') throw new Exception("Expected ',' or '}' at position " + pos);
+                if (c != ',') throw new ParseException("Expected ',' or '}'", pos);
                 pos++;
             }
             return map;
         }
 
-        private List<Object> parseArray() throws Exception {
+        private List<Object> parseArray() {
+            depth++;
+            checkDepth();
             List<Object> list = new ArrayList<>();
             pos++; // skip '['
             skipWhitespace();
             if (pos < s.length() && s.charAt(pos) == ']') {
                 pos++;
+                depth--;
                 return list;
             }
             while (true) {
                 list.add(parse());
                 skipWhitespace();
-                if (pos >= s.length()) throw new Exception("Unexpected end of input in array");
+                if (pos >= s.length()) throw new ParseException("Unexpected end of input in array", pos);
                 char c = s.charAt(pos);
                 if (c == ']') {
                     pos++;
+                    depth--;
                     break;
                 }
-                if (c != ',') throw new Exception("Expected ',' or ']' at position " + pos);
+                if (c != ',') throw new ParseException("Expected ',' or ']'", pos);
                 pos++;
             }
             return list;
         }
 
-        private String parseString() throws Exception {
+        private String parseString() {
             if (pos >= s.length() || s.charAt(pos) != '"') {
-                throw new Exception("Expected '\"' at position " + pos);
+                throw new ParseException("Expected '\"'", pos);
             }
             pos++; // skip opening quote
             StringBuilder sb = new StringBuilder();
@@ -100,7 +125,7 @@ public class Json {
                 }
                 if (c == '\\') {
                     pos++;
-                    if (pos >= s.length()) throw new Exception("Unexpected end of input in string escape");
+                    if (pos >= s.length()) throw new ParseException("Unexpected end of input in string escape", pos);
                     char next = s.charAt(pos);
                     switch (next) {
                         case '"': sb.append('"'); break;
@@ -112,29 +137,29 @@ public class Json {
                         case 'r': sb.append('\r'); break;
                         case 't': sb.append('\t'); break;
                         case 'u': {
-                            if (pos + 4 >= s.length()) throw new Exception("Incomplete unicode escape at position " + pos);
+                            if (pos + 4 >= s.length()) throw new ParseException("Incomplete unicode escape", pos);
                             String hex = s.substring(pos + 1, pos + 5);
                             try {
                                 int codePoint = Integer.parseInt(hex, 16);
                                 sb.append((char) codePoint);
                             } catch (NumberFormatException e) {
-                                throw new Exception("Invalid unicode escape \\u" + hex + " at position " + pos);
+                                throw new ParseException("Invalid unicode escape \\u" + hex, pos);
                             }
                             pos += 4;
                             break;
                         }
                         default:
-                            throw new Exception("Invalid escape sequence \\" + next + " at position " + pos);
+                            throw new ParseException("Invalid escape sequence \\" + next, pos);
                     }
                 } else {
                     sb.append(c);
                 }
                 pos++;
             }
-            throw new Exception("Unterminated string at position " + pos);
+            throw new ParseException("Unterminated string", pos);
         }
 
-        private Boolean parseBoolean() throws Exception {
+        private Boolean parseBoolean() {
             if (s.startsWith("true", pos)) {
                 pos += 4;
                 return true;
@@ -143,22 +168,22 @@ public class Json {
                 pos += 5;
                 return false;
             }
-            throw new Exception("Expected boolean at position " + pos);
+            throw new ParseException("Expected boolean", pos);
         }
 
-        private Object parseNull() throws Exception {
+        private Object parseNull() {
             if (s.startsWith("null", pos)) {
                 pos += 4;
                 return null;
             }
-            throw new Exception("Expected null at position " + pos);
+            throw new ParseException("Expected null", pos);
         }
 
-        private Number parseNumber() throws Exception {
+        private Number parseNumber() {
             int start = pos;
             if (s.charAt(pos) == '-') pos++;
             if (pos >= s.length() || !Character.isDigit(s.charAt(pos))) {
-                throw new Exception("Expected digit at position " + pos);
+                throw new ParseException("Expected digit", pos);
             }
             if (s.charAt(pos) == '0') {
                 pos++;
@@ -170,7 +195,7 @@ public class Json {
                 isDouble = true;
                 pos++;
                 if (pos >= s.length() || !Character.isDigit(s.charAt(pos))) {
-                    throw new Exception("Expected digit after decimal point at position " + pos);
+                    throw new ParseException("Expected digit after decimal point", pos);
                 }
                 while (pos < s.length() && Character.isDigit(s.charAt(pos))) pos++;
             }
@@ -179,15 +204,19 @@ public class Json {
                 pos++;
                 if (pos < s.length() && (s.charAt(pos) == '+' || s.charAt(pos) == '-')) pos++;
                 if (pos >= s.length() || !Character.isDigit(s.charAt(pos))) {
-                    throw new Exception("Expected digit in exponent at position " + pos);
+                    throw new ParseException("Expected digit in exponent", pos);
                 }
                 while (pos < s.length() && Character.isDigit(s.charAt(pos))) pos++;
             }
             String numStr = s.substring(start, pos);
             try {
-                return Double.parseDouble(numStr);
+                double d = Double.parseDouble(numStr);
+                if (Double.isInfinite(d)) {
+                    throw new ParseException("Number overflow to Infinity", start);
+                }
+                return d;
             } catch (NumberFormatException e) {
-                throw new Exception("Invalid number at position " + start);
+                throw new ParseException("Invalid number", start);
             }
         }
     }
@@ -200,8 +229,10 @@ public class Json {
                 sb.append("null");
             } else if (obj instanceof String) {
                 writeString((String) obj);
+            } else if (obj instanceof Double || obj instanceof Float) {
+                writeDouble((Number) obj);
             } else if (obj instanceof Number) {
-                writeNumber((Number) obj);
+                sb.append(obj.toString());
             } else if (obj instanceof Boolean) {
                 sb.append(obj.toString());
             } else if (obj instanceof Map) {
@@ -236,24 +267,12 @@ public class Json {
             sb.append('"');
         }
 
-        private void writeNumber(Number n) {
-            if (n instanceof Double || n instanceof Float) {
-                double d = n.doubleValue();
-                if (Double.isNaN(d) || Double.isInfinite(d)) {
-                    throw new IllegalArgumentException("NaN and Infinity are not valid JSON numbers");
-                }
-                // Use enough precision to round-trip
-                sb.append(String.format("%.17g", d));
-            } else if (n instanceof Long) {
-                long l = n.longValue();
-                if (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
-                    sb.append(l);
-                } else {
-                    sb.append(l);
-                }
-            } else {
-                sb.append(n.toString());
+        private void writeDouble(Number n) {
+            double d = n.doubleValue();
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                throw new IllegalArgumentException("NaN and Infinity are not valid JSON numbers");
             }
+            sb.append(Double.toString(d));
         }
 
         private void writeMap(Map<?, ?> map) {
@@ -300,8 +319,8 @@ public class Json {
                 throw new IllegalArgumentException("Trailing garbage at position " + parser.pos);
             }
             return result;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Malformed JSON at position " + (e.getMessage().contains("position") ? e.getMessage().split("position ")[1] : "unknown") + ": " + e.getMessage(), e);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 

@@ -2,7 +2,6 @@ package models.ml.Preprocessing.Text.Vectorizer;
 
 import models.ml.Utils.Json;
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class BagOfWordsVectorizer extends AbstractTextVectorizer {
@@ -10,7 +9,6 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
     private final int minDocFreq;
     private final int maxFeatures;
     private Map<Integer, Integer> documentFrequencies;
-    private boolean fitted = false;
 
     public BagOfWordsVectorizer() {
         this("\\b\\w+\\b", true, Collections.emptySet(), false, 1, -1, 1, 1);
@@ -90,19 +88,6 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
     }
 
     @Override
-    public void fit(List<String> docs) {
-        vocabulary.clear();
-        documentFrequencies.clear();
-        fitted = false;
-        super.fit(docs);
-    }
-
-    @Override
-    public boolean isFitted() {
-        return fitted;
-    }
-
-    @Override
     public String toJson() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("binary", binary);
@@ -121,7 +106,7 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
 
     public static BagOfWordsVectorizer fromJson(String json) {
         if (json == null || json.isEmpty()) {
-            return new BagOfWordsVectorizer();
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
         Object parsed = Json.parse(json);
@@ -133,11 +118,11 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
 
         // Required fields
         Boolean binaryObj = getBoolean(map, "binary");
-        Integer minDocFreqObj = getInteger(map, "minDocFreq");
-        Integer maxFeaturesObj = getInteger(map, "maxFeatures");
+        Object minDocFreqObj = map.get("minDocFreq");
+        Object maxFeaturesObj = map.get("maxFeatures");
         Boolean toLowerCaseObj = getBoolean(map, "toLowerCase");
-        Integer ngramMinObj = getInteger(map, "ngramMin");
-        Integer ngramMaxObj = getInteger(map, "ngramMax");
+        Object ngramMinObj = map.get("ngramMin");
+        Object ngramMaxObj = map.get("ngramMax");
         String tokenPattern = getString(map, "tokenPattern");
         Object stopwordsObj = map.get("stopwords");
         Object vocabObj = map.get("vocab");
@@ -152,12 +137,16 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
         if (tokenPattern == null) throw new IllegalArgumentException("Missing required field: tokenPattern");
         if (vocabObj == null) throw new IllegalArgumentException("Missing required field: vocab");
 
-        boolean binary = binaryObj;
-        int minDocFreq = minDocFreqObj;
-        int maxFeatures = maxFeaturesObj;
-        boolean toLowerCase = toLowerCaseObj;
-        int ngramMin = ngramMinObj;
-        int ngramMax = ngramMaxObj;
+        // Validate whole numbers for integer fields
+        requireInteger(map, "minDocFreq");
+        requireInteger(map, "maxFeatures");
+        requireInteger(map, "ngramMin");
+        requireInteger(map, "ngramMax");
+
+        int minDocFreq = ((Number) minDocFreqObj).intValue();
+        int maxFeatures = ((Number) maxFeaturesObj).intValue();
+        int ngramMin = ((Number) ngramMinObj).intValue();
+        int ngramMax = ((Number) ngramMaxObj).intValue();
 
         if (ngramMin < 1) throw new IllegalArgumentException("ngramMin must be >= 1");
         if (ngramMax < ngramMin) throw new IllegalArgumentException("ngramMax must be >= ngramMin");
@@ -169,24 +158,38 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
             throw new IllegalArgumentException("Invalid tokenPattern regex: " + e.getMessage());
         }
 
-        // Parse stopwords
+        // Parse stopwords - must be a list of strings
         Set<String> stopwords = new HashSet<>();
         if (stopwordsObj instanceof List) {
             for (Object sw : (List<?>) stopwordsObj) {
-                if (sw instanceof String) {
-                    stopwords.add((String) sw);
+                if (!(sw instanceof String)) {
+                    throw new IllegalArgumentException("stopwords must be a list of strings");
                 }
+                stopwords.add((String) sw);
             }
+        } else if (stopwordsObj != null) {
+            throw new IllegalArgumentException("stopwords must be a list");
         }
 
-        // Parse vocabulary
+        // Parse vocabulary - must be object with whole number values
         Map<String, Integer> vocab = new LinkedHashMap<>();
         if (vocabObj instanceof Map) {
             for (Map.Entry<?, ?> e : ((Map<?, ?>) vocabObj).entrySet()) {
-                if (e.getKey() instanceof String && e.getValue() instanceof Number) {
-                    vocab.put((String) e.getKey(), ((Number) e.getValue()).intValue());
+                if (!(e.getKey() instanceof String)) {
+                    throw new IllegalArgumentException("Vocabulary key must be string");
                 }
+                Object val = e.getValue();
+                if (!(val instanceof Number)) {
+                    throw new IllegalArgumentException("Vocabulary value for key '" + e.getKey() + "' must be a whole number");
+                }
+                double d = ((Number) val).doubleValue();
+                if (d != Math.floor(d)) {
+                    throw new IllegalArgumentException("Vocabulary value for key '" + e.getKey() + "' must be a whole number, got " + d);
+                }
+                vocab.put((String) e.getKey(), ((Number) val).intValue());
             }
+        } else {
+            throw new IllegalArgumentException("vocab must be an object");
         }
 
         // Validate vocabulary indices are exactly 0..n-1 with no duplicates
@@ -204,30 +207,12 @@ public class BagOfWordsVectorizer extends AbstractTextVectorizer {
             }
         }
 
-        BagOfWordsVectorizer vec = new BagOfWordsVectorizer(tokenPattern, toLowerCase, stopwords,
-                binary, minDocFreq, maxFeatures, ngramMin, ngramMax);
+        BagOfWordsVectorizer vec = new BagOfWordsVectorizer(tokenPattern, getBoolean(map, "toLowerCase"), stopwords,
+                binaryObj, minDocFreq, maxFeatures, ngramMin, ngramMax);
         vec.vocabulary.putAll(vocab);
         // If "fitted" field is missing, default to true if vocab is not empty (backward compatibility)
         vec.fitted = fittedObj != null ? fittedObj : !vocab.isEmpty();
 
         return vec;
-    }
-
-    private static Boolean getBoolean(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof Boolean) return (Boolean) v;
-        return null;
-    }
-
-    private static Integer getInteger(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof Number) return ((Number) v).intValue();
-        return null;
-    }
-
-    private static String getString(Map<String, Object> map, String key) {
-        Object v = map.get(key);
-        if (v instanceof String) return (String) v;
-        return null;
     }
 }
