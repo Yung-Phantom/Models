@@ -1,5 +1,6 @@
 package models.ml.Preprocessing.Text.Vectorizer;
 
+import models.ml.Utils.Json;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,6 +13,7 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
     private final boolean l2Normalize;
     Map<Integer, Integer> documentFrequencies;
     double[] idf;
+    private boolean fitted = false;
 
     public TfidfVectorizer() {
         this("\\b\\w+\\b", true, Collections.emptySet(), false, 1, -1, false, true, 1, 1);
@@ -32,7 +34,9 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
 
     @Override
     protected void buildVocabulary(List<String> docs) {
-        if (docs == null) return;
+        if (docs == null) {
+            throw new IllegalArgumentException("Documents list cannot be null");
+        }
         Map<String, Integer> docFreqMap = new HashMap<>();
 
         for (String doc : docs) {
@@ -75,10 +79,15 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
             int df = e.getValue();
             idf[e.getKey()] = Math.log((numDocuments + 1.0) / (df + 1.0)) + 1.0;
         }
+
+        fitted = true;
     }
 
     @Override
     protected void addToSparseVector(List<String> ngrams, Map<Integer, Double> result) {
+        if (!fitted) {
+            throw new IllegalStateException("Vectorizer must be fitted before transform");
+        }
         // First pass: compute raw tf (or binary)
         Map<Integer, Double> tf = new HashMap<>();
         for (String ngram : ngrams) {
@@ -119,41 +128,37 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
     }
 
     @Override
+    public void fit(List<String> docs) {
+        vocabulary.clear();
+        documentFrequencies.clear();
+        idf = null;
+        fitted = false;
+        super.fit(docs);
+    }
+
+    @Override
+    public boolean isFitted() {
+        return fitted;
+    }
+
+    @Override
     public String toJson() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"binary\":").append(binary)
-          .append(",\"minDocFreq\":").append(minDocFreq)
-          .append(",\"maxFeatures\":").append(maxFeatures)
-          .append(",\"sublinearTf\":").append(sublinearTf)
-          .append(",\"l2Normalize\":").append(l2Normalize)
-          .append(",\"toLowerCase\":").append(toLowerCase)
-          .append(",\"ngramMin\":").append(ngramMin)
-          .append(",\"ngramMax\":").append(ngramMax)
-          .append(",\"tokenPattern\":\"").append(escape(tokenPattern.pattern())).append("\"")
-          .append(",\"stopwords\":[");
-        boolean first = true;
-        for (String sw : stopwords) {
-            if (!first) sb.append(",");
-            sb.append("\"").append(escape(sw)).append("\"");
-            first = false;
-        }
-        sb.append("]");
-        sb.append(",\"idf\":[");
-        first = true;
-        for (double v : idf) {
-            if (!first) sb.append(",");
-            sb.append(v);
-            first = false;
-        }
-        sb.append("]");
-        sb.append(",\"vocab\":{");
-        int i = 0;
-        for (Map.Entry<String, Integer> e : vocabulary.entrySet()) {
-            sb.append("\"").append(escape(e.getKey())).append("\":").append(e.getValue());
-            if (++i < vocabulary.size()) sb.append(",");
-        }
-        sb.append("}}");
-        return sb.toString();
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("binary", binary);
+        map.put("minDocFreq", minDocFreq);
+        map.put("maxFeatures", maxFeatures);
+        map.put("sublinearTf", sublinearTf);
+        map.put("l2Normalize", l2Normalize);
+        map.put("toLowerCase", toLowerCase);
+        map.put("ngramMin", ngramMin);
+        map.put("ngramMax", ngramMax);
+        map.put("tokenPattern", tokenPattern.pattern());
+        List<String> stopwordsList = new ArrayList<>(stopwords);
+        map.put("stopwords", stopwordsList);
+        map.put("idf", idf != null ? toDoubleList(idf) : Collections.emptyList());
+        map.put("vocab", vocabulary);
+        map.put("fitted", fitted);
+        return Json.write(map);
     }
 
     public static TfidfVectorizer fromJson(String json) {
@@ -161,116 +166,148 @@ public class TfidfVectorizer extends AbstractTextVectorizer {
             return new TfidfVectorizer();
         }
 
-        // Parse fields
-        boolean binary = parseBooleanField(json, "binary", false);
-        int minDocFreq = parseIntField(json, "minDocFreq", 1);
-        int maxFeatures = parseIntField(json, "maxFeatures", -1);
-        boolean sublinearTf = parseBooleanField(json, "sublinearTf", false);
-        boolean l2Normalize = parseBooleanField(json, "l2Normalize", true);
-        boolean toLowerCase = parseBooleanField(json, "toLowerCase", true);
-        int ngramMin = parseIntField(json, "ngramMin", 1);
-        int ngramMax = parseIntField(json, "ngramMax", 1);
-        String tokenPattern = parseStringField(json, "tokenPattern", "\\b\\w+\\b");
+        Object parsed = Json.parse(json);
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        // Required fields
+        Boolean binaryObj = getBoolean(map, "binary");
+        Integer minDocFreqObj = getInteger(map, "minDocFreq");
+        Integer maxFeaturesObj = getInteger(map, "maxFeatures");
+        Boolean sublinearTfObj = getBoolean(map, "sublinearTf");
+        Boolean l2NormalizeObj = getBoolean(map, "l2Normalize");
+        Boolean toLowerCaseObj = getBoolean(map, "toLowerCase");
+        Integer ngramMinObj = getInteger(map, "ngramMin");
+        Integer ngramMaxObj = getInteger(map, "ngramMax");
+        String tokenPattern = getString(map, "tokenPattern");
+        Object stopwordsObj = map.get("stopwords");
+        Object idfObj = map.get("idf");
+        Object vocabObj = map.get("vocab");
+        Boolean fittedObj = getBoolean(map, "fitted");
+
+        if (binaryObj == null) throw new IllegalArgumentException("Missing required field: binary");
+        if (minDocFreqObj == null) throw new IllegalArgumentException("Missing required field: minDocFreq");
+        if (maxFeaturesObj == null) throw new IllegalArgumentException("Missing required field: maxFeatures");
+        if (sublinearTfObj == null) throw new IllegalArgumentException("Missing required field: sublinearTf");
+        if (l2NormalizeObj == null) throw new IllegalArgumentException("Missing required field: l2Normalize");
+        if (toLowerCaseObj == null) throw new IllegalArgumentException("Missing required field: toLowerCase");
+        if (ngramMinObj == null) throw new IllegalArgumentException("Missing required field: ngramMin");
+        if (ngramMaxObj == null) throw new IllegalArgumentException("Missing required field: ngramMax");
+        if (tokenPattern == null) throw new IllegalArgumentException("Missing required field: tokenPattern");
+        if (idfObj == null) throw new IllegalArgumentException("Missing required field: idf");
+        if (vocabObj == null) throw new IllegalArgumentException("Missing required field: vocab");
+
+        boolean binary = binaryObj;
+        int minDocFreq = minDocFreqObj;
+        int maxFeatures = maxFeaturesObj;
+        boolean sublinearTf = sublinearTfObj;
+        boolean l2Normalize = l2NormalizeObj;
+        boolean toLowerCase = toLowerCaseObj;
+        int ngramMin = ngramMinObj;
+        int ngramMax = ngramMaxObj;
+
+        if (ngramMin < 1) throw new IllegalArgumentException("ngramMin must be >= 1");
+        if (ngramMax < ngramMin) throw new IllegalArgumentException("ngramMax must be >= ngramMin");
+
+        // Validate tokenPattern is a valid regex
+        try {
+            Pattern.compile(tokenPattern);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid tokenPattern regex: " + e.getMessage());
+        }
 
         // Parse stopwords
         Set<String> stopwords = new HashSet<>();
-        int swStart = json.indexOf("\"stopwords\":[");
-        if (swStart >= 0) {
-            int swEnd = json.indexOf("]", swStart);
-            if (swEnd > swStart) {
-                String swBody = json.substring(swStart + 12, swEnd).trim();
-                if (!swBody.isEmpty()) {
-                    String[] parts = swBody.split(",");
-                    for (String p : parts) {
-                        String sw = p.trim();
-                        if (sw.startsWith("\"") && sw.endsWith("\"")) {
-                            sw = sw.substring(1, sw.length() - 1);
-                        }
-                        stopwords.add(unescape(sw));
-                    }
+        if (stopwordsObj instanceof List) {
+            for (Object sw : (List<?>) stopwordsObj) {
+                if (sw instanceof String) {
+                    stopwords.add((String) sw);
                 }
             }
         }
 
-        TfidfVectorizer vec = new TfidfVectorizer(tokenPattern, toLowerCase, stopwords,
-                binary, minDocFreq, maxFeatures, sublinearTf, l2Normalize, ngramMin, ngramMax);
-
         // Parse IDF array
-        int idfStart = json.indexOf("\"idf\":[");
-        if (idfStart < 0) {
-            throw new IllegalArgumentException("Missing 'idf' field in JSON");
+        List<?> idfList = null;
+        if (idfObj instanceof List) {
+            idfList = (List<?>) idfObj;
         }
-        int idfEnd = json.indexOf("]", idfStart);
-        if (idfEnd <= idfStart) {
-            throw new IllegalArgumentException("Malformed 'idf' field in JSON");
-        }
-        String idfBody = json.substring(idfStart + 7, idfEnd).trim();
-        if (idfBody.isEmpty()) {
-            throw new IllegalArgumentException("'idf' array is empty");
-        }
-        String[] parts = idfBody.split(",");
-        vec.idf = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                vec.idf[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'idf': " + parts[i].trim());
+        double[] idf = null;
+        if (idfList != null) {
+            idf = new double[idfList.size()];
+            for (int i = 0; i < idfList.size(); i++) {
+                Object v = idfList.get(i);
+                if (v instanceof Number) {
+                    idf[i] = ((Number) v).doubleValue();
+                } else {
+                    throw new IllegalArgumentException("idf array must contain numbers");
+                }
             }
         }
 
-        // Parse vocabulary - required field
-        int vocabIdx = json.indexOf("\"vocab\":{");
-        if (vocabIdx < 0) {
-            throw new IllegalArgumentException("Missing 'vocab' field in JSON");
+        // Parse vocabulary
+        Map<String, Integer> vocab = new LinkedHashMap<>();
+        if (vocabObj instanceof Map) {
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) vocabObj).entrySet()) {
+                if (e.getKey() instanceof String && e.getValue() instanceof Number) {
+                    vocab.put((String) e.getKey(), ((Number) e.getValue()).intValue());
+                }
+            }
         }
-        int start = json.indexOf('{', vocabIdx);
-        int end = findMatchingBrace(json, start);
-        if (start < 0 || end <= start) {
-            throw new IllegalArgumentException("Malformed 'vocab' field in JSON");
+
+        // Validate vocabulary indices are exactly 0..n-1 with no duplicates
+        if (!vocab.isEmpty()) {
+            int n = vocab.size();
+            boolean[] seen = new boolean[n];
+            for (int idx : vocab.values()) {
+                if (idx < 0 || idx >= n) {
+                    throw new IllegalArgumentException("Vocabulary index out of range: " + idx + " (size=" + n + ")");
+                }
+                if (seen[idx]) {
+                    throw new IllegalArgumentException("Duplicate vocabulary index: " + idx);
+                }
+                seen[idx] = true;
+            }
         }
-        String body = json.substring(start + 1, end).trim();
-        vec.parseVocabularyJson(body);
-        if (vec.vocabulary.isEmpty()) {
-            throw new IllegalArgumentException("Vocabulary is empty after parsing JSON");
+
+        // Validate idf length matches vocab size
+        if (idf != null && idf.length != vocab.size()) {
+            throw new IllegalArgumentException("idf.length (" + idf.length + ") != vocab size (" + vocab.size() + ")");
         }
-        // Rebuild documentFrequencies from IDF if needed
-        vec.documentFrequencies = new HashMap<>();
-        for (Map.Entry<String, Integer> e : vec.vocabulary.entrySet()) {
-            vec.documentFrequencies.put(e.getValue(), 1); // placeholder, not used after fit
-        }
+
+        TfidfVectorizer vec = new TfidfVectorizer(tokenPattern, toLowerCase, stopwords,
+                binary, minDocFreq, maxFeatures, sublinearTf, l2Normalize, ngramMin, ngramMax);
+        vec.vocabulary.putAll(vocab);
+        vec.idf = idf;
+        // If "fitted" field is missing, default to true if vocab is not empty (backward compatibility)
+        vec.fitted = fittedObj != null ? fittedObj : !vocab.isEmpty();
 
         return vec;
     }
 
-    private static boolean parseBooleanField(String json, String field, boolean defaultValue) {
-        int idx = json.indexOf("\"" + field + "\":");
-        if (idx < 0) return defaultValue;
-        int start = idx + field.length() + 3;
-        if (start + 4 <= json.length() && json.substring(start, start + 4).equals("true")) return true;
-        if (start + 5 <= json.length() && json.substring(start, start + 5).equals("false")) return false;
-        return defaultValue;
+    private static Boolean getBoolean(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof Boolean) return (Boolean) v;
+        return null;
     }
 
-    private static int parseIntField(String json, String field, int defaultValue) {
-        int idx = json.indexOf("\"" + field + "\":");
-        if (idx < 0) return defaultValue;
-        int start = idx + field.length() + 3;
-        int end = start;
-        while (end < json.length() && (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) end++;
-        if (end <= start) return defaultValue;
-        try {
-            return Integer.parseInt(json.substring(start, end));
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
+    private static Integer getInteger(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof Number) return ((Number) v).intValue();
+        return null;
     }
 
-    private static String parseStringField(String json, String field, String defaultValue) {
-        int idx = json.indexOf("\"" + field + "\":\"");
-        if (idx < 0) return defaultValue;
-        int start = idx + field.length() + 4;
-        int end = json.indexOf('"', start);
-        if (end < start) return defaultValue;
-        return unescape(json.substring(start, end));
+    private static String getString(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        if (v instanceof String) return (String) v;
+        return null;
+    }
+
+    private static List<Double> toDoubleList(double[] arr) {
+        List<Double> list = new ArrayList<>(arr.length);
+        for (double v : arr) list.add(v);
+        return list;
     }
 }

@@ -62,7 +62,7 @@ public abstract class AbstractTextVectorizer implements TextVectorizer {
     @Override
     public void fit(List<String> docs) {
         if (docs == null) {
-            return;
+            throw new IllegalArgumentException("Documents list cannot be null");
         }
         vocabulary.clear();
         numDocuments = 0;

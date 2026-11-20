@@ -557,6 +557,19 @@ public class AbstractLogisticRegression {
     }
 
     public int predictMultinomialClass(Map<Integer, Double> row) {
+        if (row == null)
+            throw new IllegalArgumentException("Row cannot be null");
+        // Empty row is valid - predicts from bias alone
+        for (Map.Entry<Integer, Double> e : row.entrySet()) {
+            int key = e.getKey();
+            double val = e.getValue();
+            if (key < 0) {
+                throw new IllegalArgumentException("Sparse vector contains negative feature index: " + key);
+            }
+            if (Double.isNaN(val) || Double.isInfinite(val)) {
+                throw new IllegalArgumentException("Sparse vector contains NaN or Infinity");
+            }
+        }
         int numClasses = multiWeights.length;
         double[] scores = new double[numClasses];
 
