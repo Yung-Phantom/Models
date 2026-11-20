@@ -18,8 +18,10 @@ public class LabelEncoder {
         if (labels.isEmpty()) {
             throw new IllegalArgumentException("Labels list cannot be empty");
         }
-        if (labels.contains(null)) {
-            throw new IllegalArgumentException("Labels list cannot contain null");
+        for (String label : labels) {
+            if (label == null) {
+                throw new IllegalArgumentException("Labels list cannot contain null");
+            }
         }
 
         // Create a copy to avoid mutation issues
