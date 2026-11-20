@@ -1,184 +1,96 @@
-# Machine Learning Models Library
+# Models
 
-A Java-based machine learning library implementing supervised learning algorithms for classification and regression with support for multiple dataset formats.
+A Java 17 machine-learning library with implementations for classification and
+regression, dataset loading, numeric preprocessing, and text classification.
+The Maven project is in `models/`; sample datasets are in the repository-level
+`Datasets/` directory.
 
-## Project Structure
+## Features
 
-```
-models/
-├── src/main/java/models/ml/
-│   ├── App.java                                    # Main entry point and examples
-│   ├── DatasetHandler/
-│   │   ├── DatasetLoader.java                     # Load CSV, JSON, SQLite datasets
-│   │   ├── DocToVec.java                          # Document vectorization utilities
-│   │   └── helpers/
-│   │       ├── DatasetSplit.java                  # Train/test split container
-│   │       ├── Dataset.java                       # Dataset wrapper class
-│   │       └── DatasetConfig.java                 # Configuration enum
-│   ├── KNN/
-│   │   ├── KNN.java
-│   │   └── AbstractKNN.java
-│   ├── LinearRegression/
-│   │   ├── LinearRegression.java
-│   │   └── AbstractLinearRegression.java
-│   ├── NaiveBayes/
-│   │   ├── NaiveBayes.java
-│   │   └── AbstractNaiveBayes.java
-│   └── LogisticRegression/
-│       ├── LogisticRegression.java
-│       └── AbstractLogisticRegression.java
-├── Datasets/                                       # Sample datasets
-│   ├── Iris.csv
-│   ├── Social_Network_Ads.csv
-│   ├── sentiment_data.csv
-│   ├── winequality-red.csv
-│   └── ... (20+ datasets)
-├── pom.xml                                        # Maven configuration
-└── README.md
-```
+- **Models:** K-nearest neighbors (KNN), linear regression, logistic regression,
+  Naive Bayes, and support vector machines (SVM).
+- **Data:** Load CSV, TSV, TXT, JSON, or SQLite datasets. Select a target column
+  by name or use the final column. Split data randomly, stratified, or as a
+  time series.
+- **Preprocessing:** Standard, z-score, min-max, and max-absolute scaling;
+  simple imputation; and label encoding.
+- **Text:** Bag-of-words and TF-IDF vectorizers, n-gram generation, word and
+  document vectorization, and a text-classification pipeline.
+- **Evaluation:** Classification metrics include accuracy, precision, recall,
+  specificity, F1, balanced accuracy, and MCC. Regression metrics include MSE,
+  RMSE, MAE, and R².
+- **Model persistence:** Models support saving and loading serialized files.
 
-## Available Models
+## Build and test
 
-### 1. **K-Nearest Neighbors (KNN)**
-Distance-based classification supporting Euclidean and Minkowski metrics.
-- Supports configurable k value
-- Majority voting for predictions
-- Calculates accuracy on test set
+Requires JDK 17 and Maven.
 
-```java
-KNN knn = new KNN(trainData, testData, "minkowski", 5);
-int[] predictions = knn.predictAllMajority();
-double accuracy = knn.accuracy();
-```
-
-### 2. **Linear Regression**
-Regression using Normal Equations or Gradient Descent.
-- Methods: "normal" (closed-form) or "gradientDescent"
-- Configurable learning rate and epochs
-- Evaluation: MSE, R² score
-
-```java
-LinearRegression lr = new LinearRegression(trainData, testData, "normal", 0.1, 1000);
-double[] predictions = lr.predictAll();
-double mse = lr.mse();
-double r2 = lr.r2();
-```
-
-### 3. **Naive Bayes**
-Probabilistic classifier with multiple variants.
-- Methods: "gaussian", "multinomial", "bernoulli"
-- Alpha smoothing parameter support
-- Returns normalized probability distributions
-
-```java
-NaiveBayes nb = new NaiveBayes(trainData, testData, "multinomial");
-int[] predictions = nb.predictAll();
-double accuracy = nb.accuracy();
-Map<Integer, Double> probs = nb.predictProbability(0);
-```
-
-### 4. **Logistic Regression**
-Classification using sigmoid/softmax functions.
-- Methods: "binary", "multinomial", "ordinal"
-- Configurable learning rate and epochs
-- Probability estimates and class predictions
-
-```java
-LogisticRegression logReg = new LogisticRegression(trainData, testData, "multinomial");
-int[] predictions = logReg.predictAll();
-double probability = logReg.predictProbability(0);
-double accuracy = logReg.accuracy();
-```
-
-## DatasetLoader & DatasetSplit
-
-### Loading Datasets
-
-```java
-// Basic load with automatic header and ID detection
-DatasetLoader loader = new DatasetLoader("path/to/data.csv", "label_column");
-DatasetSplit split = loader.split(80); // 80% train, 20% test
-
-double[][] trainData = split.train;
-double[][] testData = split.test;
-```
-
-### Supported Formats
-- **CSV/TSV/TXT**: Automatic delimiter detection
-- **JSON**: Array of objects or newline-delimited
-- **SQLite**: Database query support
-
-### Custom Configuration
-
-```java
-DatasetLoader loader = new DatasetLoader(
-    "path/to/data.csv",
-    true,           // hasID
-    true,           // hasHeader  
-    "label_column", // labelColumn
-    ','             // delimiter
-);
-```
-
-## Quick Start Example
-
-```java
-// Load Social Network Ads dataset
-DatasetLoader loader = new DatasetLoader(
-    "Datasets/Social_Network_Ads.csv", 
-    "Purchased"
-);
-DatasetSplit split = loader.split(80);
-
-// Train logistic regression
-LogisticRegression model = new LogisticRegression(
-    split.train, 
-    split.test, 
-    "multinomial"
-);
-
-// Predict and evaluate
-int[] predictions = model.predictAll();
-System.out.println("Accuracy: " + model.accuracy());
-
-// Check probability for specific sample
-double prob = model.predictProbability(0);
-System.out.println("Probability: " + prob);
-```
-
-## Building & Running
-
-```bash
-# Build with Maven
+```shell
 cd models
-mvn clean compile
-
-# Run main application
-mvn exec:java -Dexec.mainClass="models.ml.App"
-
-# Run tests
 mvn test
 ```
 
-## Evaluation Metrics
+The Maven module is `models/pom.xml`. Tests are under `models/src/test/java`.
 
-- **Accuracy**: Fraction of correct predictions (Classification)
-- **MSE** (Mean Squared Error): Average squared errors (Regression)
-- **R² Score**: Coefficient of determination (Regression)
-- **Probability**: Estimated class probability (Logistic Regression)
+## Quick start
 
-## Sample Datasets Included
+This example loads the bundled Iris CSV, keeps its `Species` target, makes a
+stratified 80/20 split, trains KNN, and evaluates accuracy:
 
-| Dataset | Type | Classes | Features | Records |
-|---------|------|---------|----------|---------|
-| Iris.csv | Classification | 3 | 4 | 150 |
-| Social_Network_Ads.csv | Classification | 2 | multiple | varies |
-| sentiment_data.csv | Classification | 3 | text | varies |
-| winequality-red.csv | Regression | - | 11 | 1599 |
+```java
+import java.util.Map;
 
-## Notes
+import models.ml.DatasetHandler.DatasetLoader;
+import models.ml.DatasetHandler.helpers.DatasetConfig;
+import models.ml.Model.KNN.KNN;
 
-- All models use index-based prediction: `predict(int queryIndex)`
-- Datasets are shuffled during train/test split
-- Last column in dataset is treated as the label/target variable
-- NaN values are handled during numeric conversion
+public class Example {
+    public static void main(String[] args) throws Exception {
+        DatasetLoader loader = new DatasetLoader(
+            "../Datasets/Iris.csv",
+            DatasetConfig.HAS_ID_WITH_HEADER,
+            "Species"
+        );
+
+        KNN model = new KNN();
+        model.fit(loader, 80, "stratified");
+
+        Map<String, Double> results =
+            model.evaluate(new String[] { "accuracy" });
+        System.out.println(results);
+    }
+}
+```
+
+`DatasetConfig` describes whether the source has a header and an ID column.
+The split strategy accepts `random`, `stratified`, or `timeseries` (and their
+short aliases `r`, `s`, or `t`). A seeded overload is available on
+`DatasetLoader.split` for reproducible splits.
+
+## Models and options
+
+All models can be trained with dense numeric data or, where supported, sparse
+text-vectorizer output. The common `Model` API provides fitting, prediction,
+evaluation, refresh, and save/load operations.
+
+| Model | Purpose | Options |
+|---|---|---|
+| `KNN` | Classification | Euclidean, Manhattan, Minkowski, or cosine distance; configurable `k` |
+| `LinearRegression` | Regression | Normal equation (`normal`) or gradient descent (`gd` / `gradientdescent`) |
+| `LogisticRegression` | Classification | Binary, multinomial, or ordinal |
+| `NaiveBayes` | Classification | Gaussian, multinomial, or Bernoulli |
+| `SVM` | Classification | SVC and configurable kernels |
+
+Model classes are in `models.ml.Model`; numeric preprocessing is in
+`models.ml.Preprocessing.Scaling`. Text vectorizers and `TextPipeline` are in
+`models.ml.Preprocessing.Text.Vectorizer` and `models.ml.Pipeline`.
+
+## Dataset notes
+
+The repository includes sample CSV and JSON files, plus a SQLite database, in
+`Datasets/`. `DatasetLoader` currently supports CSV, TSV, TXT, JSON, and SQLite;
+the included Parquet file is not supported by this loader.
+
+The `models.ml.App` class is an experiment/demo entry point. Its dataset paths
+are absolute paths from the development machine, so update them for your
+environment before running it.

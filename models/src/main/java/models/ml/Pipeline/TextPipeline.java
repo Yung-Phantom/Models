@@ -41,6 +41,17 @@ public class TextPipeline {
         this.model = model;
     }
 
+    /**
+     * Fits the pipeline on the given texts and labels.
+     * <p>
+     * Validation is performed first. If validation fails, the previous fit is unchanged.
+     * If training fails after validation, the pipeline is left unfitted and the exception propagates unchanged.
+     *
+     * @param texts  the training texts
+     * @param labels the training labels
+     * @throws IllegalArgumentException if validation fails
+     * @throws RuntimeException         if training fails (pipeline left unfitted)
+     */
     public void fit(List<String> texts, List<String> labels) {
         // Validate everything BEFORE touching the vectorizer, encoder or model
         if (texts == null) {
@@ -69,6 +80,9 @@ public class TextPipeline {
             }
         }
 
+        // Mark as unfitted before training; will be set to true only if all steps succeed
+        fitted = false;
+
         // Fit the vectorizer and encoder
         vectorizer.fit(texts);
         List<Map<Integer, Double>> x = vectorizer.transform(texts);
@@ -78,6 +92,7 @@ public class TextPipeline {
         // Train the model using sparse fit
         model.fit(x, y);
 
+        // Only mark as fitted after all training steps succeed
         fitted = true;
     }
 
