@@ -122,7 +122,7 @@ public class DatasetLoader {
             }
         }
 
-        switch (strategy.toLowerCase()) {
+        switch (strategy.toLowerCase(Locale.ROOT)) {
             case "stratified":
             case "s":
                 return stratifiedSplit(trainPercent, rand);

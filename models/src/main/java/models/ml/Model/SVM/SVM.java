@@ -27,9 +27,9 @@ public class SVM extends Model {
     private static final double DEFAULT_C = 1.0;
     private static final double DEFAULT_LEARNING_RATE = 0.01;
     private static final int DEFAULT_EPOCHS = 1000;
-    private static final double DEFAULT_GAMMA = 0.1;
+    private static final double DEFAULT_GAMMA = 1.0;
     private static final int DEFAULT_DEGREE = 3;
-    private static final double DEFAULT_COEF0 = 1.0;
+    private static final double DEFAULT_COEF0 = 0.0;
 
     public String method;
     public String kernel;
@@ -628,6 +628,26 @@ public class SVM extends Model {
         this.C = (C > 0) ? C : DEFAULT_C;
         this.learningRate = (learningRate > 0) ? learningRate : DEFAULT_LEARNING_RATE;
         this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        // Apply defaults for unset params; throw for explicitly invalid values
+        if (gamma > 0) {
+            this.gamma = gamma;
+        } else if (gamma == 0.0) {
+            this.gamma = DEFAULT_GAMMA;
+        } else {
+            throw new IllegalArgumentException("Gamma must be positive");
+        }
+        if (degree > 0) {
+            this.degree = degree;
+        } else if (degree == 0) {
+            this.degree = DEFAULT_DEGREE;
+        } else {
+            throw new IllegalArgumentException("Degree must be positive");
+        }
+        if (coef0 >= 0) {
+            this.coef0 = coef0;
+        } else {
+            throw new IllegalArgumentException("Coef0 must be non-negative");
+        }
         this.sparse = false;
     }
 

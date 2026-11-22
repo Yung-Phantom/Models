@@ -95,7 +95,7 @@ public final class ImageDatasetLoader {
                     }
                     // Check extension
                     String ext = getExtension(fileName);
-                    if (ext == null || !SUPPORTED_EXTENSIONS.contains(ext.toLowerCase())) {
+                    if (ext == null || !SUPPORTED_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT))) {
                         continue;
                     }
                     imageFiles.add(entry);
