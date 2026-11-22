@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public abstract class AbstractImageFeatureExtractor implements FeatureExtractor<ImageData> {
 
-    protected boolean fitted = false;
+    private boolean fitted = false;
 
     @Override
     public void fit(List<ImageData> inputs) {
@@ -31,6 +31,14 @@ public abstract class AbstractImageFeatureExtractor implements FeatureExtractor<
         }
         // Empty list is allowed (matches VectorizerTest precedent for fit)
         fitted = true;
+    }
+
+    /**
+     * Marks the extractor as fitted without running validation.
+     * Intended for use by {@code fromJson} methods to restore fitted state.
+     */
+    void markFitted() {
+        this.fitted = true;
     }
 
     /**
@@ -52,11 +60,21 @@ public abstract class AbstractImageFeatureExtractor implements FeatureExtractor<
         return fitted;
     }
 
+    private void requireFitted() {
+        if (!fitted) {
+            throw new IllegalStateException("Extractor must be fitted before transform");
+        }
+    }
+
+    private void validateInputList(List<ImageData> inputs) {
+        if (inputs == null) {
+            throw new IllegalArgumentException("inputs list cannot be null");
+        }
+    }
+
     @Override
     public double[] transformDense(ImageData input) {
-        if (!fitted) {
-            throw new IllegalStateException("Extractor must be fitted before transformDense");
-        }
+        requireFitted();
         if (input == null) {
             throw new IllegalArgumentException("input cannot be null");
         }
@@ -65,12 +83,8 @@ public abstract class AbstractImageFeatureExtractor implements FeatureExtractor<
 
     @Override
     public double[][] transformDense(List<ImageData> inputs) {
-        if (!fitted) {
-            throw new IllegalStateException("Extractor must be fitted before transformDense");
-        }
-        if (inputs == null) {
-            throw new IllegalArgumentException("inputs list cannot be null");
-        }
+        requireFitted();
+        validateInputList(inputs);
         double[][] result = new double[inputs.size()][];
         for (int i = 0; i < inputs.size(); i++) {
             ImageData img = inputs.get(i);
@@ -84,22 +98,26 @@ public abstract class AbstractImageFeatureExtractor implements FeatureExtractor<
 
     @Override
     public Map<Integer, Double> transform(ImageData input) {
-        return FeatureVectors.toSparse(transformDense(input));
+        requireFitted();
+        if (input == null) {
+            throw new IllegalArgumentException("input cannot be null");
+        }
+        return FeatureVectors.toSparse(extractDense(input));
     }
 
     @Override
     public List<Map<Integer, Double>> transform(List<ImageData> inputs) {
+        requireFitted();
+        validateInputList(inputs);
         List<Map<Integer, Double>> result = new ArrayList<>(inputs.size());
-        for (ImageData img : inputs) {
-            result.add(transform(img));
+        for (int i = 0; i < inputs.size(); i++) {
+            ImageData img = inputs.get(i);
+            if (img == null) {
+                throw new IllegalArgumentException("input at index " + i + " cannot be null");
+            }
+            result.add(FeatureVectors.toSparse(extractDense(img)));
         }
         return result;
-    }
-
-    @Override
-    public List<Map<Integer, Double>> fitTransform(List<ImageData> inputs) {
-        fit(inputs);
-        return transform(inputs);
     }
 
     @Override

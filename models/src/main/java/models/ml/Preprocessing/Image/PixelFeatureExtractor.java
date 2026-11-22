@@ -127,9 +127,9 @@ public final class PixelFeatureExtractor extends AbstractImageFeatureExtractor {
         }
 
         PixelFeatureExtractor extractor = new PixelFeatureExtractor(width, height, mode);
-        // Use reflection-like access to set fitted flag (or we can add a package-private setter)
-        // Since fitted is protected in the parent, we can set it directly
-        extractor.fitted = fitted;
+        if (fitted) {
+            extractor.markFitted();
+        }
         return extractor;
     }
 }

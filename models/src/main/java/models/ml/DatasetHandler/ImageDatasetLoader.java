@@ -22,10 +22,10 @@ import java.util.*;
  * </pre>
  * <p>
  * Supported extensions (case-insensitive): .png, .jpg, .jpeg, .gif, .bmp
- * Hidden files (starting with '.') and nested subdirectories are ignored.
+ * Hidden files (starting with '.') and hidden directories (starting with '.') and nested subdirectories are ignored.
  * Files with supported extensions that cannot be decoded throw an exception.
  * <p>
- * Deterministic ordering: classes sorted by name, files sorted by name within a class.
+ * Deterministic ordering: classes sorted by name (String.compareTo), files sorted by name (String.compareTo) within a class.
  * Not thread-safe.
  */
 public final class ImageDatasetLoader {
@@ -56,6 +56,11 @@ public final class ImageDatasetLoader {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootDirectory)) {
             for (Path entry : stream) {
                 if (Files.isDirectory(entry)) {
+                    String dirName = entry.getFileName().toString();
+                    // Skip hidden directories
+                    if (dirName.startsWith(".")) {
+                        continue;
+                    }
                     classDirs.add(entry);
                 }
             }
@@ -67,8 +72,8 @@ public final class ImageDatasetLoader {
             throw new IllegalArgumentException("no class subdirectories found in: " + rootDirectory);
         }
 
-        // Sort class directories by name for deterministic ordering
-        classDirs.sort(Comparator.comparing(Path::getFileName, Comparator.naturalOrder()));
+        // Sort class directories by name (String.compareTo) for deterministic ordering
+        classDirs.sort(Comparator.comparing(p -> p.getFileName().toString()));
 
         List<ImageData> images = new ArrayList<>();
         List<String> labels = new ArrayList<>();
@@ -99,8 +104,8 @@ public final class ImageDatasetLoader {
                 throw new IllegalArgumentException("Failed to read class directory: " + classDir, e);
             }
 
-            // Sort files by name for deterministic ordering
-            imageFiles.sort(Comparator.comparing(Path::getFileName, Comparator.naturalOrder()));
+            // Sort files by name (String.compareTo) for deterministic ordering
+            imageFiles.sort(Comparator.comparing(p -> p.getFileName().toString()));
 
             if (imageFiles.isEmpty()) {
                 continue; // Skip empty class directories

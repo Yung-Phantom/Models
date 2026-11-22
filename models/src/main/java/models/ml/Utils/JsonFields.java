@@ -19,7 +19,8 @@ public final class JsonFields {
      * @param map   parsed JSON object; must not be null
      * @param field field name; must not be null
      * @return the integer value
-     * @throws IllegalArgumentException if field is missing, not a Number, or not a whole number
+     * @throws IllegalArgumentException if field is missing, not a Number, not a whole number,
+     *         or outside the int range
      */
     public static int requireInt(Map<String, Object> map, String field) {
         if (map == null) {
@@ -38,6 +39,9 @@ public final class JsonFields {
         double d = ((Number) v).doubleValue();
         if (d != Math.floor(d)) {
             throw new IllegalArgumentException("Field '" + field + "' must be a whole number, got " + d);
+        }
+        if (d < Integer.MIN_VALUE || d > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Field '" + field + "' value " + d + " outside int range [" + Integer.MIN_VALUE + ", " + Integer.MAX_VALUE + "]");
         }
         return ((Number) v).intValue();
     }

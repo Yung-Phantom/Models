@@ -21,8 +21,8 @@ public final class ImageDecoder {
      * Reads an image file and returns it as 3-channel RGB {@link ImageData}
      * with pixel values normalized to [0, 1].
      * <p>
-     * Handles indexed color, grayscale, and alpha sources by converting to RGB.
-     * Transparent pixels are composited onto white.
+     * Handles indexed color, grayscale, and alpha sources by reading RGB directly
+     * from the decoded image. Transparent pixels are composited onto white.
      *
      * @param file path to image file; must not be null
      * @return 3-channel RGB ImageData
@@ -41,17 +41,13 @@ public final class ImageDecoder {
             if (img == null) {
                 throw new IllegalArgumentException("file is not a decodable image: " + file);
             }
-            // Ensure we have a TYPE_INT_RGB or TYPE_INT_ARGB compatible image
-            // Convert to ARGB to handle all cases uniformly
             int w = img.getWidth();
             int h = img.getHeight();
-            BufferedImage argb = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            argb.getGraphics().drawImage(img, 0, 0, null);
 
             double[] pixels = new double[w * h * 3];
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
-                    int rgb = argb.getRGB(x, y);
+                    int rgb = img.getRGB(x, y);
                     // Composite onto white background if transparent
                     int alpha = (rgb >> 24) & 0xFF;
                     int r = (rgb >> 16) & 0xFF;

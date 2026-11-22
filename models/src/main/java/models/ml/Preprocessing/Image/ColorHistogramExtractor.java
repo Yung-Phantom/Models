@@ -149,7 +149,9 @@ public final class ColorHistogramExtractor extends AbstractImageFeatureExtractor
         }
 
         ColorHistogramExtractor extractor = new ColorHistogramExtractor(bins, mode);
-        extractor.fitted = fitted;
+        if (fitted) {
+            extractor.markFitted();
+        }
         return extractor;
     }
 }

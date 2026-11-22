@@ -97,6 +97,9 @@ public final class ImageOps {
      * Resizes an image using bilinear interpolation.
      * Same-size images are returned unchanged.
      * Constant images remain constant.
+     * <p>
+     * The source coordinates are clamped to [0, w-1] and [0, h-1] before
+     * computing floor indices and interpolation weights, ensuring weights are always in [0,1].
      *
      * @param image      input image (1 or 3 channels); must not be null
      * @param newWidth   target width; must be > 0
@@ -125,15 +128,19 @@ public final class ImageOps {
         // Pixel-center mapping: src = (dst + 0.5) * srcSize / dstSize - 0.5
         for (int y = 0; y < newHeight; y++) {
             double sy = (y + 0.5) * h / (double) newHeight - 0.5;
+            // Clamp sy to valid source range [0, h-1] BEFORE computing floor indices
+            if (sy < 0.0) sy = 0.0;
+            else if (sy > h - 1) sy = h - 1;
             int y0 = (int) Math.floor(sy);
-            if (y0 < 0) y0 = 0;
             int y1 = Math.min(y0 + 1, h - 1);
             double wy1 = sy - y0;
             double wy0 = 1.0 - wy1;
             for (int x = 0; x < newWidth; x++) {
                 double sx = (x + 0.5) * w / (double) newWidth - 0.5;
+                // Clamp sx to valid source range [0, w-1] BEFORE computing floor indices
+                if (sx < 0.0) sx = 0.0;
+                else if (sx > w - 1) sx = w - 1;
                 int x0 = (int) Math.floor(sx);
-                if (x0 < 0) x0 = 0;
                 int x1 = Math.min(x0 + 1, w - 1);
                 double wx1 = sx - x0;
                 double wx0 = 1.0 - wx1;
