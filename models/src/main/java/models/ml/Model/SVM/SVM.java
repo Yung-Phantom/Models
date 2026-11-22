@@ -622,6 +622,24 @@ public class SVM extends Model {
         this.sparse = true;
     }
 
+    /**
+     * Initializes parameters for dense training from fields set by the caller.
+     * <p>
+     * Semantics for gamma, degree, coef0 (when using no-arg dense fit):
+     * <ul>
+     *   <li>Positive value (> 0): kept as explicit user setting.</li>
+     *   <li>Zero (0.0 for gamma/coef0, 0 for degree): treated as "unset", default is applied
+     *       (gamma=1.0, degree=3, coef0=0.0).</li>
+     *   <li>Negative value: throws {@code IllegalArgumentException}.</li>
+     * </ul>
+     * Explicitly set positive values persist through fit. Values of exactly zero take the default.
+     * This method is called by all dense {@code fit()} overloads that do not take gamma/degree/coef0
+     * as arguments.
+     * <p>
+     * Note: constructors that take explicit gamma/degree/coef0 pass those values directly to
+     * {@link AbstractSVM}, which validates them; a value of exactly 0 passed there will still
+     * throw because AbstractSVM requires gamma > 0, degree > 0, coef0 >= 0.
+     */
     private void initDenseParams() {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
         this.kernel = (kernel != null) ? kernel.toLowerCase() : DEFAULT_KERNEL;
