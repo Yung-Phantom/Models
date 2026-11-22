@@ -1,5 +1,6 @@
 package models.ml.DatasetHandler;
 
+import models.ml.DatasetHandler.helpers.ClassFolderScanner;
 import models.ml.DatasetHandler.helpers.ImageDataset;
 import models.ml.DatasetHandler.helpers.ImageDecoder;
 import models.ml.Preprocessing.Image.ImageData;
@@ -45,92 +46,14 @@ public final class ImageDatasetLoader {
      *         or no images found
      */
     public static ImageDataset load(Path rootDirectory) {
-        if (rootDirectory == null) {
-            throw new IllegalArgumentException("rootDirectory cannot be null");
-        }
-        if (!Files.isDirectory(rootDirectory)) {
-            throw new IllegalArgumentException("rootDirectory is not a directory: " + rootDirectory);
-        }
+        ClassFolderScanner.ScanResult scan = ClassFolderScanner.scan(rootDirectory, SUPPORTED_EXTENSIONS);
 
-        List<Path> classDirs = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootDirectory)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry)) {
-                    String dirName = entry.getFileName().toString();
-                    // Skip hidden directories
-                    if (dirName.startsWith(".")) {
-                        continue;
-                    }
-                    classDirs.add(entry);
-                }
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to read root directory: " + rootDirectory, e);
+        List<ImageData> images = new ArrayList<>(scan.files.size());
+        for (Path imageFile : scan.files) {
+            ImageData imageData = ImageDecoder.decode(imageFile);
+            images.add(imageData);
         }
 
-        if (classDirs.isEmpty()) {
-            throw new IllegalArgumentException("no class subdirectories found in: " + rootDirectory);
-        }
-
-        // Sort class directories by name (String.compareTo) for deterministic ordering
-        classDirs.sort(Comparator.comparing(p -> p.getFileName().toString()));
-
-        List<ImageData> images = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        List<String> sources = new ArrayList<>();
-
-        for (Path classDir : classDirs) {
-            String className = classDir.getFileName().toString();
-            List<Path> imageFiles = new ArrayList<>();
-
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(classDir)) {
-                for (Path entry : stream) {
-                    if (!Files.isRegularFile(entry)) {
-                        continue;
-                    }
-                    String fileName = entry.getFileName().toString();
-                    // Skip hidden files
-                    if (fileName.startsWith(".")) {
-                        continue;
-                    }
-                    // Check extension
-                    String ext = getExtension(fileName);
-                    if (ext == null || !SUPPORTED_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT))) {
-                        continue;
-                    }
-                    imageFiles.add(entry);
-                }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to read class directory: " + classDir, e);
-            }
-
-            // Sort files by name (String.compareTo) for deterministic ordering
-            imageFiles.sort(Comparator.comparing(p -> p.getFileName().toString()));
-
-            if (imageFiles.isEmpty()) {
-                continue; // Skip empty class directories
-            }
-
-            for (Path imageFile : imageFiles) {
-                ImageData imageData = ImageDecoder.decode(imageFile);
-                images.add(imageData);
-                labels.add(className);
-                sources.add(imageFile.toString());
-            }
-        }
-
-        if (images.isEmpty()) {
-            throw new IllegalArgumentException("no images found in any class subdirectory of: " + rootDirectory);
-        }
-
-        return new ImageDataset(images, labels, sources);
-    }
-
-    private static String getExtension(String fileName) {
-        int dot = fileName.lastIndexOf('.');
-        if (dot <= 0 || dot == fileName.length() - 1) {
-            return null;
-        }
-        return fileName.substring(dot + 1);
+        return new ImageDataset(images, scan.labels, scan.sources);
     }
 }
