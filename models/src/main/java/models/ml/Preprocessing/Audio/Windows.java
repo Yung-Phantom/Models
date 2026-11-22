@@ -1,5 +1,7 @@
 package models.ml.Preprocessing.Audio;
 
+import java.util.Arrays;
+
 /**
  * Window functions for audio processing.
  * <p>
@@ -33,5 +35,29 @@ public final class Windows {
             w[i] = 0.5 - 0.5 * Math.cos(2.0 * Math.PI * i / n);
         }
         return w;
+    }
+
+    /**
+     * Applies a window to a frame in-place.
+     *
+     * @param frame the frame to window; must not be null
+     * @param window the window coefficients; must not be null and length must equal frame.length
+     * @return the windowed frame (same array as input, modified in-place)
+     * @throws IllegalArgumentException if frame or window is null, or lengths don't match
+     */
+    public static double[] apply(double[] frame, double[] window) {
+        if (frame == null) {
+            throw new IllegalArgumentException("frame cannot be null");
+        }
+        if (window == null) {
+            throw new IllegalArgumentException("window cannot be null");
+        }
+        if (frame.length != window.length) {
+            throw new IllegalArgumentException("frame length (" + frame.length + ") must equal window length (" + window.length + ")");
+        }
+        for (int i = 0; i < frame.length; i++) {
+            frame[i] *= window[i];
+        }
+        return frame;
     }
 }

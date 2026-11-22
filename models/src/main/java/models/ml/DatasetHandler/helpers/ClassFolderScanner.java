@@ -20,7 +20,7 @@ public final class ClassFolderScanner {
      *
      * @param rootDirectory root directory containing class subdirectories; must not be null
      * @param extensions    set of allowed extensions (lowercase, without dot); must not be null
-     * @return a tuple of [classDirs, classNames, filePaths] where each is a list parallel by class
+     * @return a {@link ScanResult} containing files, labels, and sources lists
      * @throws IllegalArgumentException if root is null, not a directory, no class subdirectories,
      *         or no files found
      */
@@ -63,7 +63,7 @@ public final class ClassFolderScanner {
 
         for (Path classDir : classDirs) {
             String className = classDir.getFileName().toString();
-            List<Path> imageFiles = new ArrayList<>();
+            List<Path> files = new ArrayList<>();
 
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(classDir)) {
                 for (Path entry : stream) {
@@ -78,23 +78,23 @@ public final class ClassFolderScanner {
                     if (ext == null || !extensions.contains(ext.toLowerCase(Locale.ROOT))) {
                         continue;
                     }
-                    imageFiles.add(entry);
+                    files.add(entry);
                 }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read class directory: " + classDir, e);
             }
 
             // Sort files by name (String.compareTo)
-            imageFiles.sort(Comparator.comparing(p -> p.getFileName().toString()));
+            files.sort(Comparator.comparing(p -> p.getFileName().toString()));
 
-            if (imageFiles.isEmpty()) {
+            if (files.isEmpty()) {
                 continue; // Skip empty class directories
             }
 
-            for (Path imageFile : imageFiles) {
-                allFiles.add(imageFile);
+            for (Path file : files) {
+                allFiles.add(file);
                 allLabels.add(className);
-                allSources.add(imageFile.toString());
+                allSources.add(file.toString());
             }
         }
 

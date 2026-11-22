@@ -3,7 +3,6 @@ package models.ml.DatasetHandler.helpers;
 import models.ml.Preprocessing.Image.ImageData;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Immutable container for a labeled image dataset.
@@ -25,7 +24,8 @@ public final class ImageDataset {
      * @throws IllegalArgumentException if lists are null, have different sizes, or contain nulls
      */
     public ImageDataset(List<ImageData> images, List<String> labels, List<String> sources) {
-        this.delegate = new LabeledDataset<>(images, labels, sources);
+        this.delegate = new LabeledDataset<>(images, labels, sources,
+                "images", "image", "labels", "label", "sources", "source");
     }
 
     /**

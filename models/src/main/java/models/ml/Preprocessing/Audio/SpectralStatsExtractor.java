@@ -3,6 +3,7 @@ package models.ml.Preprocessing.Audio;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -77,11 +78,9 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
 
         for (int i = 0; i < numFrames; i++) {
             double[] frame = frames.get(i);
-            // Apply Hann window
-            double[] windowed = new double[frameSize];
-            for (int j = 0; j < frameSize; j++) {
-                windowed[j] = frame[j] * hannWindow[j];
-            }
+            // Apply Hann window using Windows.apply (modifies frame in-place)
+            double[] windowed = Arrays.copyOf(frame, frame.length);
+            Windows.apply(windowed, hannWindow);
 
             // RMS
             double sumSq = 0.0;
@@ -101,7 +100,7 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
 
             // FFT and spectral features
             double[] mag = Fft.magnitudeSpectrum(windowed, frameSize);
-            int N = mag.length - 1; // number of frequency bins (excluding Nyquist for centroid calc)
+            int N = mag.length; // number of frequency bins including Nyquist (frameSize/2 + 1)
 
             double sumMag = 0.0;
             double weightedSum = 0.0;
@@ -111,7 +110,7 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
             }
 
             if (sumMag > 0) {
-                centroidVals[i] = weightedSum / sumMag / N;
+                centroidVals[i] = weightedSum / sumMag / (N - 1);
             } else {
                 centroidVals[i] = 0.0;
             }
@@ -128,7 +127,7 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
                         break;
                     }
                 }
-                rolloffVals[i] = (double) rolloffBin / N;
+                rolloffVals[i] = (double) rolloffBin / (N - 1);
             } else {
                 rolloffVals[i] = 0.0;
             }

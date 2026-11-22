@@ -1,7 +1,6 @@
 package models.ml.DatasetHandler.helpers;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Generic labeled dataset with stratified split capability.
@@ -18,7 +17,7 @@ public final class LabeledDataset<T> {
     private final List<String> sources;
 
     /**
-     * Creates a LabeledDataset with validation.
+     * Creates a LabeledDataset with validation using default item names ("items"/"item").
      *
      * @param items   list of items; must not be null or contain nulls
      * @param labels  list of labels; must not be null or contain nulls
@@ -26,27 +25,48 @@ public final class LabeledDataset<T> {
      * @throws IllegalArgumentException if lists are null, have different sizes, or contain nulls
      */
     public LabeledDataset(List<T> items, List<String> labels, List<String> sources) {
+        this(items, labels, sources, "items", "item", "labels", "label", "sources", "source");
+    }
+
+    /**
+     * Creates a LabeledDataset with validation using custom item names for error messages.
+     *
+     * @param items         list of items; must not be null or contain nulls
+     * @param labels        list of labels; must not be null or contain nulls
+     * @param sources       list of source identifiers; must not be null or contain nulls
+     * @param itemsPlural   plural name for items in error messages (e.g., "images")
+     * @param itemSingular  singular name for item in error messages (e.g., "image")
+     * @param labelsPlural  plural name for labels in error messages (e.g., "labels")
+     * @param labelSingular singular name for label in error messages (e.g., "label")
+     * @param sourcesPlural plural name for sources in error messages (e.g., "sources")
+     * @param sourceSingular singular name for source in error messages (e.g., "source")
+     * @throws IllegalArgumentException if lists are null, have different sizes, or contain nulls
+     */
+    public LabeledDataset(List<T> items, List<String> labels, List<String> sources,
+                          String itemsPlural, String itemSingular,
+                          String labelsPlural, String labelSingular,
+                          String sourcesPlural, String sourceSingular) {
         if (items == null) {
-            throw new IllegalArgumentException("items list cannot be null");
+            throw new IllegalArgumentException(itemsPlural + " list cannot be null");
         }
         if (labels == null) {
-            throw new IllegalArgumentException("labels list cannot be null");
+            throw new IllegalArgumentException(labelsPlural + " list cannot be null");
         }
         if (sources == null) {
-            throw new IllegalArgumentException("sources list cannot be null");
+            throw new IllegalArgumentException(sourcesPlural + " list cannot be null");
         }
         if (items.size() != labels.size() || items.size() != sources.size()) {
-            throw new IllegalArgumentException("items, labels, and sources must have the same size");
+            throw new IllegalArgumentException(itemsPlural + ", " + labelsPlural + ", and " + sourcesPlural + " must have the same size");
         }
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i) == null) {
-                throw new IllegalArgumentException("item at index " + i + " cannot be null");
+                throw new IllegalArgumentException(itemSingular + " at index " + i + " cannot be null");
             }
             if (labels.get(i) == null) {
-                throw new IllegalArgumentException("label at index " + i + " cannot be null");
+                throw new IllegalArgumentException(labelSingular + " at index " + i + " cannot be null");
             }
             if (sources.get(i) == null) {
-                throw new IllegalArgumentException("source at index " + i + " cannot be null");
+                throw new IllegalArgumentException(sourceSingular + " at index " + i + " cannot be null");
             }
         }
         this.items = Collections.unmodifiableList(new ArrayList<>(items));

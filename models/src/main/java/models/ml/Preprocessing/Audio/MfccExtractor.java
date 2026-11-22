@@ -3,6 +3,7 @@ package models.ml.Preprocessing.Audio;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -23,6 +24,10 @@ public final class MfccExtractor extends AbstractAudioFeatureExtractor {
     private final int hop;
     private final int numFilters;
     private final int numCoeffs;
+
+    // Precomputed filterbank and Hann window
+    private final double[][] filterbank;
+    private final double[] hannWindow;
 
     /**
      * Creates an MFCC feature extractor.
@@ -58,6 +63,10 @@ public final class MfccExtractor extends AbstractAudioFeatureExtractor {
         this.hop = hop;
         this.numFilters = numFilters;
         this.numCoeffs = numCoeffs;
+
+        // Precompute filterbank and Hann window once
+        this.filterbank = MelMath.createFilterbank(targetSampleRate, frameSize, numFilters);
+        this.hannWindow = Windows.hann(frameSize);
     }
 
     /**
@@ -112,17 +121,11 @@ public final class MfccExtractor extends AbstractAudioFeatureExtractor {
 
         double[][] coeffsFrames = new double[numFrames][numCoeffs];
 
-        // Precompute filterbank and window
-        double[][] filterbank = MelMath.createFilterbank(targetSampleRate, frameSize, numFilters);
-        double[] hannWindow = Windows.hann(frameSize);
-
         for (int i = 0; i < numFrames; i++) {
             double[] frame = frames.get(i);
-            // Apply Hann window
-            double[] windowed = new double[frameSize];
-            for (int j = 0; j < frameSize; j++) {
-                windowed[j] = frame[j] * hannWindow[j];
-            }
+            // Apply Hann window using Windows.apply (modifies copy in-place)
+            double[] windowed = Arrays.copyOf(frame, frame.length);
+            Windows.apply(windowed, hannWindow);
 
             // Power spectrum
             double[] mag = Fft.magnitudeSpectrum(windowed, frameSize);
@@ -212,25 +215,7 @@ public final class MfccExtractor extends AbstractAudioFeatureExtractor {
         int numCoeffs = JsonFields.requireInt(map, "numCoeffs");
         boolean fitted = JsonFields.requireBoolean(map, "fitted");
 
-        if (targetSampleRate <= 0) {
-            throw new IllegalArgumentException("targetSampleRate must be > 0, got " + targetSampleRate);
-        }
-        if (frameSize <= 0) {
-            throw new IllegalArgumentException("frameSize must be > 0, got " + frameSize);
-        }
-        if ((frameSize & (frameSize - 1)) != 0) {
-            throw new IllegalArgumentException("frameSize must be a power of two, got " + frameSize);
-        }
-        if (hop <= 0) {
-            throw new IllegalArgumentException("hop must be > 0, got " + hop);
-        }
-        if (numFilters <= 0) {
-            throw new IllegalArgumentException("numFilters must be >= 1, got " + numFilters);
-        }
-        if (numCoeffs <= 0 || numCoeffs > numFilters) {
-            throw new IllegalArgumentException("numCoeffs must be in [1, " + numFilters + "], got " + numCoeffs);
-        }
-
+        // Rely on constructor for validation
         MfccExtractor extractor = new MfccExtractor(targetSampleRate, frameSize, hop, numFilters, numCoeffs);
         if (fitted) {
             extractor.markFitted();

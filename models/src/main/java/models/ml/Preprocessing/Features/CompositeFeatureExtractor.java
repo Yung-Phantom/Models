@@ -12,6 +12,8 @@ import java.util.Map;
  * Feature extractor that concatenates outputs from multiple child extractors.
  * <p>
  * Children are fitted independently; concatenation uses index offsets.
+ * Feature size and offsets are computed at call time to support children
+ * whose feature size changes after fit.
  * <p>
  * Not thread-safe.
  *
@@ -20,8 +22,6 @@ import java.util.Map;
 public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
 
     private final List<FeatureExtractor<T>> children;
-    private final int featureSize;
-    private final int[] offsets;
 
     /**
      * Creates a composite feature extractor.
@@ -37,20 +37,14 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
             throw new IllegalArgumentException("children list cannot be empty");
         }
         List<FeatureExtractor<T>> copy = new ArrayList<>(children.size());
-        int totalSize = 0;
-        int[] off = new int[children.size()];
         for (int i = 0; i < children.size(); i++) {
             FeatureExtractor<T> child = children.get(i);
             if (child == null) {
                 throw new IllegalArgumentException("child at index " + i + " cannot be null");
             }
-            off[i] = totalSize;
-            totalSize += child.getFeatureSize();
             copy.add(child);
         }
         this.children = Collections.unmodifiableList(copy);
-        this.featureSize = totalSize;
-        this.offsets = off;
     }
 
     /**
@@ -75,9 +69,30 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         }
     }
 
+    /**
+     * Computes the total feature size by summing child feature sizes.
+     * Called at call time to reflect any changes in child feature sizes after fit.
+     */
     @Override
     public int getFeatureSize() {
-        return featureSize;
+        int total = 0;
+        for (FeatureExtractor<T> child : children) {
+            total += child.getFeatureSize();
+        }
+        return total;
+    }
+
+    /**
+     * Computes the offsets for each child at call time.
+     */
+    private int[] computeOffsets() {
+        int[] offsets = new int[children.size()];
+        int total = 0;
+        for (int i = 0; i < children.size(); i++) {
+            offsets[i] = total;
+            total += children.get(i).getFeatureSize();
+        }
+        return offsets;
     }
 
     @Override
@@ -98,6 +113,8 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         if (input == null) {
             throw new IllegalArgumentException("input cannot be null");
         }
+        int featureSize = getFeatureSize();
+        int[] offsets = computeOffsets();
         double[] result = new double[featureSize];
         for (int i = 0; i < children.size(); i++) {
             double[] childDense = children.get(i).transformDense(input);
@@ -115,6 +132,8 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         if (inputs == null) {
             throw new IllegalArgumentException("inputs list cannot be null");
         }
+        int featureSize = getFeatureSize();
+        int[] offsets = computeOffsets();
         double[][] result = new double[inputs.size()][featureSize];
         for (int i = 0; i < inputs.size(); i++) {
             result[i] = transformDense(inputs.get(i));
