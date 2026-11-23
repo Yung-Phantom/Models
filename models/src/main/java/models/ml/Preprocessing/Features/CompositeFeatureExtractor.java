@@ -82,19 +82,6 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         return total;
     }
 
-    /**
-     * Computes the offsets for each child at call time.
-     */
-    private int[] computeOffsets() {
-        int[] offsets = new int[children.size()];
-        int total = 0;
-        for (int i = 0; i < children.size(); i++) {
-            offsets[i] = total;
-            total += children.get(i).getFeatureSize();
-        }
-        return offsets;
-    }
-
     @Override
     public boolean isFitted() {
         for (FeatureExtractor<T> child : children) {
@@ -105,6 +92,19 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         return true;
     }
 
+    /**
+     * Shared guard: checks fitted state and validates input list.
+     * Throws IllegalStateException if not fitted, IllegalArgumentException if inputs is null.
+     */
+    private void requireFittedAndNonNullList(List<T> inputs) {
+        if (!isFitted()) {
+            throw new IllegalStateException("Extractor must be fitted before transform");
+        }
+        if (inputs == null) {
+            throw new IllegalArgumentException("inputs list cannot be null");
+        }
+    }
+
     @Override
     public double[] transformDense(T input) {
         if (!isFitted()) {
@@ -113,32 +113,34 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         if (input == null) {
             throw new IllegalArgumentException("input cannot be null");
         }
-        int featureSize = getFeatureSize();
-        int[] offsets = computeOffsets();
-        double[] result = new double[featureSize];
-        for (int i = 0; i < children.size(); i++) {
-            double[] childDense = children.get(i).transformDense(input);
-            int off = offsets[i];
+        List<double[]> childArrays = new ArrayList<>(children.size());
+        int totalSize = 0;
+        for (FeatureExtractor<T> child : children) {
+            double[] childDense = child.transformDense(input);
+            childArrays.add(childDense);
+            totalSize += childDense.length;
+        }
+        double[] result = new double[totalSize];
+        int off = 0;
+        for (double[] childDense : childArrays) {
             System.arraycopy(childDense, 0, result, off, childDense.length);
+            off += childDense.length;
         }
         return result;
     }
 
     @Override
     public double[][] transformDense(List<T> inputs) {
-        if (!isFitted()) {
-            throw new IllegalStateException("Extractor must be fitted before transformDense");
-        }
-        if (inputs == null) {
-            throw new IllegalArgumentException("inputs list cannot be null");
-        }
-        int featureSize = getFeatureSize();
-        int[] offsets = computeOffsets();
-        double[][] result = new double[inputs.size()][featureSize];
+        requireFittedAndNonNullList(inputs);
+        List<double[]> rows = new ArrayList<>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            result[i] = transformDense(inputs.get(i));
+            T input = inputs.get(i);
+            if (input == null) {
+                throw new IllegalArgumentException("input at index " + i + " cannot be null");
+            }
+            rows.add(transformDense(input));
         }
-        return result;
+        return rows.toArray(new double[0][]);
     }
 
     @Override
@@ -148,8 +150,13 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
 
     @Override
     public List<Map<Integer, Double>> transform(List<T> inputs) {
+        requireFittedAndNonNullList(inputs);
         List<Map<Integer, Double>> result = new ArrayList<>(inputs.size());
-        for (T input : inputs) {
+        for (int i = 0; i < inputs.size(); i++) {
+            T input = inputs.get(i);
+            if (input == null) {
+                throw new IllegalArgumentException("input at index " + i + " cannot be null");
+            }
             result.add(transform(input));
         }
         return result;

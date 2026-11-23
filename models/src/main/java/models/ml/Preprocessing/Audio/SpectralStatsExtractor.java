@@ -1,5 +1,7 @@
 package models.ml.Preprocessing.Audio;
 
+import models.ml.Preprocessing.Features.AbstractDenseFeatureExtractor;
+import models.ml.Preprocessing.Features.FeatureVectors;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
@@ -18,10 +20,11 @@ import java.util.Map;
  * <p>
  * Not thread-safe.
  */
-public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor {
+public final class SpectralStatsExtractor extends AbstractDenseFeatureExtractor<AudioData> {
 
     private final int frameSize;
     private final int hop;
+    private final double[] hannWindow;
 
     /**
      * Creates a spectral statistics feature extractor.
@@ -42,6 +45,7 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
         }
         this.frameSize = frameSize;
         this.hop = hop;
+        this.hannWindow = Windows.hann(frameSize);
     }
 
     /**
@@ -73,8 +77,6 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
         double[] zcrVals = new double[numFrames];
         double[] centroidVals = new double[numFrames];
         double[] rolloffVals = new double[numFrames];
-
-        double[] hannWindow = Windows.hann(frameSize);
 
         for (int i = 0; i < numFrames; i++) {
             double[] frame = frames.get(i);
@@ -133,44 +135,17 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
             }
         }
 
-        // Compute mean and std for each statistic
+        // Compute mean and std for each statistic using FrameStats
         double[] result = new double[8];
-        double[] means = mean(rmsVals, zcrVals, centroidVals, rolloffVals);
-        double[] stds = std(rmsVals, zcrVals, centroidVals, rolloffVals, means);
+        result[0] = FrameStats.mean(rmsVals);   // mean_rms
+        result[1] = FrameStats.std(rmsVals);    // std_rms
+        result[2] = FrameStats.mean(zcrVals);   // mean_zcr
+        result[3] = FrameStats.std(zcrVals);    // std_zcr
+        result[4] = FrameStats.mean(centroidVals); // mean_centroid
+        result[5] = FrameStats.std(centroidVals);  // std_centroid
+        result[6] = FrameStats.mean(rolloffVals);  // mean_rolloff
+        result[7] = FrameStats.std(rolloffVals);   // std_rolloff
 
-        result[0] = means[0];  // mean_rms
-        result[1] = stds[0];   // std_rms
-        result[2] = means[1];  // mean_zcr
-        result[3] = stds[1];   // std_zcr
-        result[4] = means[2];  // mean_centroid
-        result[5] = stds[2];   // std_centroid
-        result[6] = means[3];  // mean_rolloff
-        result[7] = stds[3];   // std_rolloff
-
-        return result;
-    }
-
-    private static double[] mean(double[]... arrays) {
-        double[] result = new double[arrays.length];
-        for (int i = 0; i < arrays.length; i++) {
-            double sum = 0.0;
-            for (double v : arrays[i]) sum += v;
-            result[i] = sum / arrays[i].length;
-        }
-        return result;
-    }
-
-    private static double[] std(double[]... arrays) {
-        double[] means = mean(arrays);
-        double[] result = new double[arrays.length];
-        for (int i = 0; i < arrays.length; i++) {
-            double sumSq = 0.0;
-            for (double v : arrays[i]) {
-                double diff = v - means[i];
-                sumSq += diff * diff;
-            }
-            result[i] = Math.sqrt(sumSq / arrays[i].length);
-        }
         return result;
     }
 
@@ -211,16 +186,7 @@ public final class SpectralStatsExtractor extends AbstractAudioFeatureExtractor 
         int hop = JsonFields.requireInt(map, "hop");
         boolean fitted = JsonFields.requireBoolean(map, "fitted");
 
-        if (frameSize <= 0) {
-            throw new IllegalArgumentException("frameSize must be > 0, got " + frameSize);
-        }
-        if ((frameSize & (frameSize - 1)) != 0) {
-            throw new IllegalArgumentException("frameSize must be a power of two, got " + frameSize);
-        }
-        if (hop <= 0) {
-            throw new IllegalArgumentException("hop must be > 0, got " + hop);
-        }
-
+        // Rely on constructor for validation (like MfccExtractor)
         SpectralStatsExtractor extractor = new SpectralStatsExtractor(frameSize, hop);
         if (fitted) {
             extractor.markFitted();

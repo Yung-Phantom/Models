@@ -1,5 +1,7 @@
 package models.ml.Preprocessing.Image;
 
+import models.ml.Preprocessing.Features.AbstractDenseFeatureExtractor;
+import models.ml.Preprocessing.Features.FeatureVectors;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
@@ -12,7 +14,7 @@ import java.util.Map;
  * Configuration is immutable after construction.
  * Not thread-safe.
  */
-public final class PixelFeatureExtractor extends AbstractImageFeatureExtractor {
+public final class PixelFeatureExtractor extends AbstractDenseFeatureExtractor<ImageData> {
 
     private final int targetWidth;
     private final int targetHeight;

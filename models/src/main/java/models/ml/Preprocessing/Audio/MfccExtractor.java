@@ -1,5 +1,7 @@
 package models.ml.Preprocessing.Audio;
 
+import models.ml.Preprocessing.Features.AbstractDenseFeatureExtractor;
+import models.ml.Preprocessing.Features.FeatureVectors;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
@@ -17,7 +19,7 @@ import java.util.Map;
  * <p>
  * Not thread-safe.
  */
-public final class MfccExtractor extends AbstractAudioFeatureExtractor {
+public final class MfccExtractor extends AbstractDenseFeatureExtractor<AudioData> {
 
     private final int targetSampleRate;
     private final int frameSize;
@@ -149,21 +151,15 @@ public final class MfccExtractor extends AbstractAudioFeatureExtractor {
             coeffsFrames[i] = coeffs;
         }
 
-        // Compute mean and std per coefficient (coefficient-major)
+        // Compute mean and std per coefficient (coefficient-major) using FrameStats
         double[] result = new double[2 * numCoeffs];
         for (int c = 0; c < numCoeffs; c++) {
-            double sum = 0.0;
+            double[] coeffValues = new double[numFrames];
             for (int i = 0; i < numFrames; i++) {
-                sum += coeffsFrames[i][c];
+                coeffValues[i] = coeffsFrames[i][c];
             }
-            double mean = sum / numFrames;
-
-            double sumSq = 0.0;
-            for (int i = 0; i < numFrames; i++) {
-                double diff = coeffsFrames[i][c] - mean;
-                sumSq += diff * diff;
-            }
-            double std = Math.sqrt(sumSq / numFrames);
+            double mean = FrameStats.mean(coeffValues);
+            double std = FrameStats.std(coeffValues);
 
             result[2 * c] = mean;
             result[2 * c + 1] = std;

@@ -44,7 +44,7 @@ public final class ScalingFeatureExtractor<T> implements FeatureExtractor<T> {
 
     @Override
     public void fit(List<T> inputs) {
-        // Validate inputs
+        // Validate inputs first
         if (inputs == null) {
             throw new IllegalArgumentException("inputs list cannot be null");
         }
@@ -57,6 +57,10 @@ public final class ScalingFeatureExtractor<T> implements FeatureExtractor<T> {
             }
         }
 
+        // Set fitted = false BEFORE fitting child/scaler
+        // If any subsequent step throws, fitted remains false
+        fitted = false;
+
         // Fit the child extractor first
         child.fit(inputs);
 
@@ -65,7 +69,6 @@ public final class ScalingFeatureExtractor<T> implements FeatureExtractor<T> {
         scaler.fit(denseFeatures);
 
         // Mark as fitted only if both child and scaler succeeded
-        // If scaler.fit throws, this line is not reached, so fitted remains false
         fitted = true;
     }
 

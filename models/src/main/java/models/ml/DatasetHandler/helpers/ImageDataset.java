@@ -25,7 +25,7 @@ public final class ImageDataset {
      */
     public ImageDataset(List<ImageData> images, List<String> labels, List<String> sources) {
         this.delegate = new LabeledDataset<>(images, labels, sources,
-                "images", "image", "labels", "label", "sources", "source");
+                "images", "image");
     }
 
     /**

@@ -1,5 +1,7 @@
 package models.ml.Preprocessing.Image;
 
+import models.ml.Preprocessing.Features.AbstractDenseFeatureExtractor;
+import models.ml.Preprocessing.Features.FeatureVectors;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 
@@ -13,7 +15,7 @@ import java.util.Map;
  * Each channel's histogram bins sum to 1.0 (normalized by pixel count).
  * Not thread-safe.
  */
-public final class ColorHistogramExtractor extends AbstractImageFeatureExtractor {
+public final class ColorHistogramExtractor extends AbstractDenseFeatureExtractor<ImageData> {
 
     private final int bins;
     private final ChannelMode mode;
