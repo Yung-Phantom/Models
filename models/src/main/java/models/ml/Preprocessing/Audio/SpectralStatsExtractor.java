@@ -31,7 +31,7 @@ public final class SpectralStatsExtractor extends AbstractDenseFeatureExtractor<
      *
      * @param frameSize frame size in samples; must be a power of two and > 0
      * @param hop       hop size in samples; must be > 0
-     * @throws IllegalArgumentException if frameSize is not a power of two, or <= 0, or hop <= 0
+     * @throws IllegalArgumentException if frameSize is not a power of two, or {@code <=} 0, or hop {@code <=} 0
      */
     public SpectralStatsExtractor(int frameSize, int hop) {
         if (frameSize <= 0) {

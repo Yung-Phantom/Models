@@ -10,7 +10,8 @@ import java.util.Arrays;
  */
 public final class ImageOps {
 
-    private ImageOps() {}
+    private ImageOps() {
+    }
 
     /**
      * Converts an image to grayscale using the standard luminance formula.
@@ -99,13 +100,15 @@ public final class ImageOps {
      * Constant images remain constant.
      * <p>
      * The source coordinates are clamped to [0, w-1] and [0, h-1] before
-     * computing floor indices and interpolation weights, ensuring weights are always in [0,1].
+     * computing floor indices and interpolation weights, ensuring weights are
+     * always in [0,1].
      *
-     * @param image      input image (1 or 3 channels); must not be null
-     * @param newWidth   target width; must be > 0
-     * @param newHeight  target height; must be > 0
+     * @param image     input image (1 or 3 channels); must not be null
+     * @param newWidth  target width; must be > 0
+     * @param newHeight target height; must be > 0
      * @return resized image with same channel count
-     * @throws IllegalArgumentException if image is null, or newWidth/newHeight <= 0
+     * @throws IllegalArgumentException if image is null, or newWidth/newHeight
+     *                                  {@code <=} 0
      */
     public static ImageData resize(ImageData image, int newWidth, int newHeight) {
         if (image == null) {
@@ -129,8 +132,10 @@ public final class ImageOps {
         for (int y = 0; y < newHeight; y++) {
             double sy = (y + 0.5) * h / (double) newHeight - 0.5;
             // Clamp sy to valid source range [0, h-1] BEFORE computing floor indices
-            if (sy < 0.0) sy = 0.0;
-            else if (sy > h - 1) sy = h - 1;
+            if (sy < 0.0)
+                sy = 0.0;
+            else if (sy > h - 1)
+                sy = h - 1;
             int y0 = (int) Math.floor(sy);
             int y1 = Math.min(y0 + 1, h - 1);
             double wy1 = sy - y0;
@@ -138,8 +143,10 @@ public final class ImageOps {
             for (int x = 0; x < newWidth; x++) {
                 double sx = (x + 0.5) * w / (double) newWidth - 0.5;
                 // Clamp sx to valid source range [0, w-1] BEFORE computing floor indices
-                if (sx < 0.0) sx = 0.0;
-                else if (sx > w - 1) sx = w - 1;
+                if (sx < 0.0)
+                    sx = 0.0;
+                else if (sx > w - 1)
+                    sx = w - 1;
                 int x0 = (int) Math.floor(sx);
                 int x1 = Math.min(x0 + 1, w - 1);
                 double wx1 = sx - x0;
@@ -151,8 +158,10 @@ public final class ImageOps {
                     double v11 = src[(y1 * w + x1) * c + ch];
                     double interp = wy0 * (wx0 * v00 + wx1 * v01) + wy1 * (wx0 * v10 + wx1 * v11);
                     // Clamp to [0, 1] to handle interpolation overshoot
-                    if (interp < 0.0) interp = 0.0;
-                    else if (interp > 1.0) interp = 1.0;
+                    if (interp < 0.0)
+                        interp = 0.0;
+                    else if (interp > 1.0)
+                        interp = 1.0;
                     dst[(y * newWidth + x) * c + ch] = interp;
                 }
             }

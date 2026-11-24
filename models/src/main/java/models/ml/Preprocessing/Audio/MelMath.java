@@ -43,7 +43,7 @@ public final class MelMath {
      * @param numFilters  number of triangular filters; must be > 0
      * @return 2D array [numFilters][numBins] where numBins = fftSize/2 + 1;
      *         each row is a triangular filter
-     * @throws IllegalArgumentException if any parameter <= 0
+     * @throws IllegalArgumentException if any parameter {@code <=} 0
      */
     public static double[][] createFilterbank(int sampleRate, int fftSize, int numFilters) {
         if (sampleRate <= 0) {
@@ -95,10 +95,10 @@ public final class MelMath {
      * Applies DCT-II (unnormalized) to the log filterbank energies.
      *
      * @param logEnergies array of length M (numFilters); must not be null
-     * @param numCoeffs   number of coefficients to keep (1 <= numCoeffs <= M); must be > 0 and <= logEnergies.length
+     * @param numCoeffs   number of coefficients to keep (1 {@code <=} numCoeffs {@code <=} M); must be > 0 and {@code <=} logEnergies.length
      * @return array of length numCoeffs containing c_n for n=0..numCoeffs-1
      *         where c_n = sum_{m=0}^{M-1} logE_m * cos(pi * n * (m + 0.5) / M)
-     * @throws IllegalArgumentException if logEnergies is null, numCoeffs < 1, or numCoeffs > logEnergies.length
+     * @throws IllegalArgumentException if logEnergies is null, numCoeffs {@code <} 1, or numCoeffs {@code >} logEnergies.length
      */
     public static double[] dct(double[] logEnergies, int numCoeffs) {
         if (logEnergies == null) {

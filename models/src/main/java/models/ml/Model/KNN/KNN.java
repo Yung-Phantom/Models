@@ -18,6 +18,29 @@ import models.ml.Model.Metrics;
 import models.ml.Model.Model;
 import models.ml.Model.KNN.AbstractKNN;
 
+/**
+ * K-Nearest Neighbors classifier.
+ * <p>
+ * Supports both dense and sparse data with multiple distance metrics.
+ * Stores all training instances; predicts by majority vote of k nearest neighbors.
+ * <p>
+ * <b>Distance methods:</b>
+ * <ul>
+ *   <li>Dense: {@code euclidean}, {@code manhattan}, {@code minkowski}, {@code cosine}</li>
+ *   <li>Sparse: {@code cosine} (only)</li>
+ * </ul>
+ * <p>
+ * <b>Hyperparameters:</b>
+ * <ul>
+ *   <li>{@code k} — number of neighbors (default 3, must be > 0)</li>
+ *   <li>{@code p} — Minkowski power (default 2, must be > 0)</li>
+ *   <li>{@code method} — distance method string (default dense: euclidean, sparse: cosine)</li>
+ * </ul>
+ * <p>
+ * See <a href="../../../../../../../docs/models.html">Models Guide</a>.
+ *
+ * @since 1.0
+ */
 public class KNN extends Model {
     public enum KNNMETHODS {
         EUCLIDEAN, MANHATTAN, MINKOWSKI, COSINE,

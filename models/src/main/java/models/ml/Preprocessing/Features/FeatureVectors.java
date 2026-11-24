@@ -6,14 +6,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Utility class for converting between sparse and dense feature vector representations.
+ * Utility class for converting between sparse and dense feature vector
+ * representations.
  * <p>
  * Not instantiable; all methods are static.
  * Not thread-safe; callers must ensure thread confinement.
  */
 public final class FeatureVectors {
 
-    private FeatureVectors() {}
+    private FeatureVectors() {
+    }
 
     /**
      * Converts a sparse feature vector to a dense array of the given size.
@@ -22,7 +24,8 @@ public final class FeatureVectors {
      * @param size   the feature dimensionality; must be non-negative
      * @return dense array of length {@code size}
      * @throws IllegalArgumentException if sparse is null, size is negative,
-     *         a sparse key is < 0 or >= size, or a sparse key/value is null
+     *                                  a sparse key is {@code <} 0 or {@code >=}
+     *                                  size, or a sparse key/value is null
      */
     public static double[] toDense(Map<Integer, Double> sparse, int size) {
         if (sparse == null) {
@@ -57,7 +60,9 @@ public final class FeatureVectors {
      * @param size the feature dimensionality; must be non-negative
      * @return dense matrix (one row per input)
      * @throws IllegalArgumentException if rows is null, size is negative,
-     *         a row is null, a sparse key is < 0 or >= size, or a sparse key/value is null
+     *                                  a row is null, a sparse key is {@code <} 0
+     *                                  or {@code >=} size, or a sparse key/value is
+     *                                  null
      */
     public static double[][] toDense(List<Map<Integer, Double>> rows, int size) {
         if (rows == null) {

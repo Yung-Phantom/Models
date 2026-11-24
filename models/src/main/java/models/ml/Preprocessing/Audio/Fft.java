@@ -8,19 +8,23 @@ package models.ml.Preprocessing.Audio;
  */
 public final class Fft {
 
-    private Fft() {}
+    private Fft() {
+    }
 
     /**
      * Returns the magnitude spectrum of a real-valued frame.
      * <p>
-     * The input is zero-padded or truncated to {@code fftSize} (must be a power of two
+     * The input is zero-padded or truncated to {@code fftSize} (must be a power of
+     * two
      * and {@code >= frame.length}). An iterative radix-2 Cooley-Tukey FFT is used.
      *
-     * @param frame    real-valued time-domain samples; must not be null
-     * @param fftSize  FFT size (power of two, >= frame.length); must be > 0
+     * @param frame   real-valued time-domain samples; must not be null
+     * @param fftSize FFT size (power of two, >= frame.length); must be > 0
      * @return magnitudes for bins 0..fftSize/2 (length fftSize/2 + 1)
-     * @throws IllegalArgumentException if frame is null, fftSize is not a power of two,
-     *         fftSize < frame.length, or fftSize <= 0
+     * @throws IllegalArgumentException if frame is null, fftSize is not a power of
+     *                                  two,
+     *                                  fftSize {@code <} frame.length, or fftSize
+     *                                  {@code <=} 0
      */
     public static double[] magnitudeSpectrum(double[] frame, int fftSize) {
         if (frame == null) {
@@ -33,7 +37,8 @@ public final class Fft {
             throw new IllegalArgumentException("fftSize must be a power of two, got " + fftSize);
         }
         if (fftSize < frame.length) {
-            throw new IllegalArgumentException("fftSize (" + fftSize + ") must be >= frame.length (" + frame.length + ")");
+            throw new IllegalArgumentException(
+                    "fftSize (" + fftSize + ") must be >= frame.length (" + frame.length + ")");
         }
 
         // Initialize complex array: real = frame (padded), imag = 0

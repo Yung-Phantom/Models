@@ -20,7 +20,7 @@ public final class Windows {
      *
      * @param n window length; must be > 0
      * @return Hann window of length n
-     * @throws IllegalArgumentException if n <= 0
+     * @throws IllegalArgumentException if n {@code <=} 0
      */
     public static double[] hann(int n) {
         if (n <= 0) {

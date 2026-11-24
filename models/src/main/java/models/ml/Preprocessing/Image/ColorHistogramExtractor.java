@@ -25,7 +25,7 @@ public final class ColorHistogramExtractor extends AbstractDenseFeatureExtractor
      *
      * @param bins number of bins per channel; must be >= 2
      * @param mode channel mode; must not be null
-     * @throws IllegalArgumentException if bins < 2 or mode is null
+     * @throws IllegalArgumentException if bins {@code <} 2 or mode is null
      */
     public ColorHistogramExtractor(int bins, ChannelMode mode) {
         if (bins < 2) {
@@ -116,9 +116,11 @@ public final class ColorHistogramExtractor extends AbstractDenseFeatureExtractor
     /**
      * Reconstructs a ColorHistogramExtractor from its JSON representation.
      *
-     * @param json JSON string produced by {@link #toJson()}; must not be null or empty
+     * @param json JSON string produced by {@link #toJson()}; must not be null or
+     *             empty
      * @return new ColorHistogramExtractor instance with the same configuration
-     * @throws IllegalArgumentException if JSON is malformed, missing fields, or has invalid values
+     * @throws IllegalArgumentException if JSON is malformed, missing fields, or has
+     *                                  invalid values
      */
     public static ColorHistogramExtractor fromJson(String json) {
         if (json == null || json.isEmpty()) {

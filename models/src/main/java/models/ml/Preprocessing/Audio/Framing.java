@@ -24,7 +24,7 @@ public final class Framing {
      * @param frameSize frame size in samples; must be > 0
      * @param hop       hop size in samples; must be > 0
      * @return list of frames (each a double[] of length frameSize)
-     * @throws IllegalArgumentException if x is null, frameSize <= 0, or hop <= 0
+     * @throws IllegalArgumentException if x is null, frameSize {@code <=} 0, or hop {@code <=} 0
      */
     public static List<double[]> frames(double[] x, int frameSize, int hop) {
         if (x == null) {

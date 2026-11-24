@@ -16,7 +16,7 @@ public final class AudioOps {
      * @param audio       input audio; must not be null
      * @param targetRate  target sample rate in Hz; must be > 0
      * @return resampled AudioData with same duration (approximately)
-     * @throws IllegalArgumentException if audio is null or targetRate <= 0
+     * @throws IllegalArgumentException if audio is null or targetRate {@code <=} 0
      */
     public static AudioData resample(AudioData audio, int targetRate) {
         if (audio == null) {
@@ -52,7 +52,7 @@ public final class AudioOps {
      * @param x   input array; must not be null
      * @param len target length; must be > 0
      * @return array of length {@code len}
-     * @throws IllegalArgumentException if x is null or len <= 0
+     * @throws IllegalArgumentException if x is null or len {@code <=} 0
      */
     public static double[] fixLength(double[] x, int len) {
         if (x == null) {
