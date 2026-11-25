@@ -15,11 +15,23 @@ public class AbstractLinearRegression {
 
     public double learningRate;
     public int epochs;
+    /**
+     * L2 regularization parameter (ridge penalty). Must be non-negative and finite.
+     * Default is 0.0 (no regularization). The bias/intercept term is never penalized.
+     * For normal equation: adds lambda to diagonal of X^T X (excluding bias).
+     * For gradient descent: adds lambda * w_j / n to gradient of each non-bias weight.
+     */
+    public double lambda;
 
     public double[] weights;
 
     public AbstractLinearRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
             int epochs) {
+        this(dataset, trainingLabels, method, learningRate, epochs, 0.0);
+    }
+
+    public AbstractLinearRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
+            int epochs, double lambda) {
 
         this.sparse = false;
         if (dataset == null || dataset.length == 0)
@@ -59,14 +71,23 @@ public class AbstractLinearRegression {
         if (epochs <= 0) {
             throw new IllegalArgumentException("Epochs must be a positive integer");
         }
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.learningRate = learningRate;
         this.epochs = epochs;
+        this.lambda = lambda;
 
         fit();
     }
 
     public AbstractLinearRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
             String method, double learningRate, int epochs) {
+        this(sparseDataset, trainingLabels, method, learningRate, epochs, 0.0);
+    }
+
+    public AbstractLinearRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            String method, double learningRate, int epochs, double lambda) {
         this.sparse = true;
 
         if (method == null)
@@ -108,8 +129,12 @@ public class AbstractLinearRegression {
         if (epochs <= 0) {
             throw new IllegalArgumentException("Epochs must be a positive integer");
         }
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.learningRate = learningRate;
         this.epochs = epochs;
+        this.lambda = lambda;
 
         if (trainingLabels.length != numSamples)
             throw new IllegalArgumentException("Labels size must match number of samples.");
@@ -142,16 +167,24 @@ public class AbstractLinearRegression {
     }
 
     public double[] fitNormalEquation() {
-        double[][] sparseDataset = buildDesignMatrix();
+        double[][] designMatrix = buildDesignMatrix();
 
-        double[][] Xt = transpose(sparseDataset);
-        double[][] XtX = multiply(Xt, sparseDataset);
+        double[][] Xt = transpose(designMatrix);
+        double[][] XtX = multiply(Xt, designMatrix);
+
+        // Add L2 regularization: X^T X + lambda * I (excluding bias term)
+        if (lambda > 0) {
+            for (int i = 1; i < XtX.length; i++) {
+                XtX[i][i] += lambda;
+            }
+        }
+
         double[][] XtXInv;
         try {
             XtXInv = invert(XtX);
         } catch (ArithmeticException e) {
-            throw new IllegalArgumentException("Normal equation failed: X^T X is singular (collinear features). " +
-                    "Use 'gd' (gradient descent) method instead, or remove collinear features.", e);
+            throw new IllegalArgumentException("Normal equation failed: X^T X + lambda*I is singular (collinear features). " +
+                    "Increase lambda, remove collinear features, or use gradient descent.", e);
         }
         double[] XtY = multiply(Xt, trainingLabels);
 
@@ -175,8 +208,11 @@ public class AbstractLinearRegression {
                 }
             }
 
+            // Apply L2 regularization: add lambda * w_j to gradient for non-bias weights
+            // Gradient is normalized by numSamples, so penalty is lambda * w_j / numSamples
             for (int j = 0; j < weights.length; j++) {
-                weights[j] -= learningRate * gradients[j] / numSamples;
+                double penalty = (j == 0) ? 0.0 : lambda * weights[j] / numSamples;
+                weights[j] -= learningRate * (gradients[j] / numSamples + penalty);
             }
         }
         return weights;
@@ -200,8 +236,11 @@ public class AbstractLinearRegression {
                 }
             }
 
+            // Apply L2 regularization: add lambda * w_j to gradient for non-bias weights
+            // Gradient is normalized by numSamples, so penalty is lambda * w_j / numSamples
             for (int j = 0; j < weights.length; j++) {
-                weights[j] -= learningRate * gradients[j] / numSamples;
+                double penalty = (j == 0) ? 0.0 : lambda * weights[j] / numSamples;
+                weights[j] -= learningRate * (gradients[j] / numSamples + penalty);
             }
         }
     }
@@ -361,5 +400,9 @@ public class AbstractLinearRegression {
 
     public double[] getWeights() {
         return weights;
+    }
+
+    public double getLambda() {
+        return lambda;
     }
 }

@@ -15,7 +15,6 @@ import models.ml.DatasetHandler.DatasetLoader;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.Model.Metrics;
 import models.ml.Model.Model;
-import models.ml.Preprocessing.Scaling.StandardScaler;
 
 public class LogisticRegression extends Model {
     public enum LRMETHODS {
@@ -26,78 +25,146 @@ public class LogisticRegression extends Model {
     private static final String DEFAULT_SPARSE_METHOD = "binary";
     private static final double DEFAULT_LEARNING_RATE = 0.01;
     private static final int DEFAULT_EPOCHS = 1000;
+    private static final double DEFAULT_LAMBDA = 0.0;
 
     public String method;
     public double learningRate;
     public int epochs;
+    /**
+     * L2 regularization parameter (ridge penalty). Must be non-negative and finite.
+     * Default is 0.0 (no regularization). The bias/intercept term is never penalized.
+     * For ordinal mode, thresholds are not penalized.
+     * Gradient descent: adds lambda * w_j / n to gradient of each non-bias weight.
+     */
+    public double lambda;
     private AbstractLogisticRegression lr;
+
+    public AbstractLogisticRegression getAbstractLogisticRegression() {
+        return lr;
+    }
 
     public LogisticRegression() {
     }
 
     public LogisticRegression(double[][] trainingDataset, String method, double learningRate, int epochs) {
+        this(trainingDataset, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    /**
+     * Creates a LogisticRegression model with dense training data and explicit lambda.
+     *
+     * @param trainingDataset feature+label matrix (last column = label)
+     * @param method          "binary", "multinomial", or "ordinal"
+     * @param learningRate    step size for gradient descent (0, 1]
+     * @param epochs          number of training iterations (>0)
+     * @param lambda          L2 regularization parameter (>= 0, finite). Bias and thresholds (ordinal) not penalized.
+     * @throws IllegalArgumentException if dataset is null/empty, lambda invalid, or method unsupported
+     */
+    public LogisticRegression(double[][] trainingDataset, String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(double[][] trainingDataset, double[] trainingLabels, String method, double learningRate, int epochs) {
+        this(trainingDataset, trainingLabels, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(double[][] trainingDataset, double[] trainingLabels, String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset, trainingLabels);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(double[][] trainingDataset, double[][] testDataset, String method, double learningRate, int epochs) {
+        this(trainingDataset, testDataset, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(double[][] trainingDataset, double[][] testDataset, String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset, testDataset);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
             String method, double learningRate, int epochs) {
+        this(trainingDataset, trainingLabels, testDataset, testLabels, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(double[][] trainingDataset, double[] trainingLabels, double[][] testDataset, double[] testLabels,
+            String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(List<Map<Integer, Double>> trainingDataset, String method, double learningRate, int epochs) {
+        this(trainingDataset, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(List<Map<Integer, Double>> trainingDataset, String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset);
-        initSparseParams(method, learningRate, epochs);
+        initSparseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method,
             double learningRate, int epochs) {
+        this(trainingDataset, trainingLabels, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels, String method,
+            double learningRate, int epochs, double lambda) {
         super(trainingDataset, trainingLabels);
-        initSparseParams(method, learningRate, epochs);
+        initSparseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset,
             String method, double learningRate, int epochs) {
+        this(trainingDataset, testDataset, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(List<Map<Integer, Double>> trainingDataset, List<Map<Integer, Double>> testDataset,
+            String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset, testDataset);
-        initSparseParams(method, learningRate, epochs);
+        initSparseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
             List<Map<Integer, Double>> testDataset, double[] testLabels, String method, double learningRate, int epochs) {
+        this(trainingDataset, trainingLabels, testDataset, testLabels, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(List<Map<Integer, Double>> trainingDataset, double[] trainingLabels,
+            List<Map<Integer, Double>> testDataset, double[] testLabels, String method, double learningRate, int epochs, double lambda) {
         super(trainingDataset, trainingLabels, testDataset, testLabels);
-        initSparseParams(method, learningRate, epochs);
+        initSparseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(DatasetLoader loader, int splitPercent, String splitStrategy,
             String method, double learningRate, int epochs) {
+        this(loader, splitPercent, splitStrategy, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(DatasetLoader loader, int splitPercent, String splitStrategy,
+            String method, double learningRate, int epochs, double lambda) {
         super(loader, splitPercent, splitStrategy);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
     public LogisticRegression(DatasetLoader loader, double splitDecimal, String splitStrategy,
             String method, double learningRate, int epochs) {
+        this(loader, splitDecimal, splitStrategy, method, learningRate, epochs, DEFAULT_LAMBDA);
+    }
+
+    public LogisticRegression(DatasetLoader loader, double splitDecimal, String splitStrategy,
+            String method, double learningRate, int epochs, double lambda) {
         super(loader, splitDecimal, splitStrategy);
-        initDenseParams(method, learningRate, epochs);
+        initDenseParams(method, learningRate, epochs, lambda);
         initLR();
     }
 
@@ -527,6 +594,7 @@ public class LogisticRegression extends Model {
             oos.writeObject(this.method);
             oos.writeObject(this.learningRate);
             oos.writeObject(this.epochs);
+            oos.writeObject(this.lambda);
             oos.writeObject(this.sparse);
 
             // Save datasets and labels
@@ -552,6 +620,7 @@ public class LogisticRegression extends Model {
             this.method = (String) ois.readObject();
             this.learningRate = (double) ois.readObject();
             this.epochs = (int) ois.readObject();
+            this.lambda = (double) ois.readObject();
             this.sparse = (boolean) ois.readObject();
 
             // Load datasets and labels
@@ -585,7 +654,7 @@ public class LogisticRegression extends Model {
     public void refresh() {
         if (!sparse && denseTrainingDataset != null) {
             this.lr = new AbstractLogisticRegression(this.denseTrainingDataset, this.trainingLabels, this.method,
-                    this.learningRate, this.epochs);
+                    this.learningRate, this.epochs, this.lambda);
         } else if (sparse && sparseTrainingDataset != null) {
             // For sparse, we need numFeatures - infer from training data
             int numFeatures = sparseTrainingDataset.stream()
@@ -594,7 +663,7 @@ public class LogisticRegression extends Model {
                     .orElseThrow(() -> new IllegalArgumentException("Sparse dataset must contain features"))
                     + 1;
             this.lr = new AbstractLogisticRegression(this.sparseTrainingDataset, this.trainingLabels, numFeatures,
-                    this.method, this.learningRate, this.epochs);
+                    this.method, this.learningRate, this.epochs, this.lambda);
         } else {
             throw new IllegalArgumentException("Dataset cannot be null.");
         }
@@ -820,17 +889,25 @@ public class LogisticRegression extends Model {
 
     // --- Initialization helpers ---
 
-    private void initDenseParams(String method, double learningRate, int epochs) {
+    private void initDenseParams(String method, double learningRate, int epochs, double lambda) {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
         this.learningRate = (learningRate > 0 && learningRate <= 1) ? learningRate : DEFAULT_LEARNING_RATE;
         this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
+        this.lambda = lambda;
         this.sparse = false;
     }
 
-    private void initSparseParams(String method, double learningRate, int epochs) {
+    private void initSparseParams(String method, double learningRate, int epochs, double lambda) {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
         this.learningRate = (learningRate > 0 && learningRate <= 1) ? learningRate : DEFAULT_LEARNING_RATE;
         this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
+        this.lambda = lambda;
         this.sparse = true;
     }
 
@@ -838,6 +915,9 @@ public class LogisticRegression extends Model {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_DENSE_METHOD;
         this.learningRate = (learningRate > 0 && learningRate <= 1) ? learningRate : DEFAULT_LEARNING_RATE;
         this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.sparse = false;
     }
 
@@ -845,13 +925,16 @@ public class LogisticRegression extends Model {
         this.method = (method != null) ? method.toLowerCase() : DEFAULT_SPARSE_METHOD;
         this.learningRate = (learningRate > 0 && learningRate <= 1) ? learningRate : DEFAULT_LEARNING_RATE;
         this.epochs = (epochs > 0) ? epochs : DEFAULT_EPOCHS;
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.sparse = true;
     }
 
     private void initLR() {
         if (!sparse && denseTrainingDataset != null) {
             this.lr = new AbstractLogisticRegression(this.denseTrainingDataset, this.trainingLabels, this.method,
-                    this.learningRate, this.epochs);
+                    this.learningRate, this.epochs, this.lambda);
         } else if (sparse && sparseTrainingDataset != null) {
             int numFeatures = sparseTrainingDataset.stream()
                     .flatMap(m -> m.keySet().stream())
@@ -859,7 +942,7 @@ public class LogisticRegression extends Model {
                     .orElseThrow(() -> new IllegalArgumentException("Sparse dataset must contain features"))
                     + 1;
             this.lr = new AbstractLogisticRegression(this.sparseTrainingDataset, this.trainingLabels, numFeatures,
-                    this.method, this.learningRate, this.epochs);
+                    this.method, this.learningRate, this.epochs, this.lambda);
         }
     }
 

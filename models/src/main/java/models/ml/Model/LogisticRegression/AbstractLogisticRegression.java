@@ -15,6 +15,13 @@ public class AbstractLogisticRegression {
 
     public double learningRate;
     public int epochs;
+    /**
+     * L2 regularization parameter (ridge penalty). Must be non-negative and finite.
+     * Default is 0.0 (no regularization). The bias/intercept term is never penalized.
+     * For ordinal mode, thresholds are not penalized.
+     * Gradient descent: adds lambda * w_j / n to gradient of each non-bias weight.
+     */
+    public double lambda;
 
     public double[] weights;
     public double[][] multiWeights;
@@ -22,6 +29,11 @@ public class AbstractLogisticRegression {
 
     public AbstractLogisticRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
             int epochs) {
+        this(dataset, trainingLabels, method, learningRate, epochs, 0.0);
+    }
+
+    public AbstractLogisticRegression(double[][] dataset, double[] trainingLabels, String method, double learningRate,
+            int epochs, double lambda) {
 
         this.sparse = false;
         if (dataset == null || dataset.length == 0)
@@ -61,14 +73,23 @@ public class AbstractLogisticRegression {
         if (epochs <= 0) {
             throw new IllegalArgumentException("Epochs must be a positive integer");
         }
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.learningRate = learningRate;
         this.epochs = epochs;
+        this.lambda = lambda;
 
         fit();
     }
 
     public AbstractLogisticRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
             int numFeatures, String method, double learningRate, int epochs) {
+        this(sparseDataset, trainingLabels, numFeatures, method, learningRate, epochs, 0.0);
+    }
+
+    public AbstractLogisticRegression(List<Map<Integer, Double>> sparseDataset, double[] trainingLabels,
+            int numFeatures, String method, double learningRate, int epochs, double lambda) {
         this.sparse = true;
 
         if (method == null)
@@ -107,8 +128,12 @@ public class AbstractLogisticRegression {
         if (epochs <= 0) {
             throw new IllegalArgumentException("Epochs must be a positive integer");
         }
+        if (lambda < 0 || Double.isNaN(lambda) || Double.isInfinite(lambda)) {
+            throw new IllegalArgumentException("Lambda must be a non-negative finite value");
+        }
         this.learningRate = learningRate;
         this.epochs = epochs;
+        this.lambda = lambda;
 
         if (trainingLabels.length != numSamples)
             throw new IllegalArgumentException("Labels size must match number of samples.");
@@ -174,8 +199,12 @@ public class AbstractLogisticRegression {
                 }
             }
 
-            for (int j = 0; j < weights.length; j++)
-                weights[j] -= learningRate * gradients[j] / numSamples;
+            // Apply L2 regularization: add lambda * w_j to gradient for non-bias weights
+            // Gradient is normalized by numSamples, so penalty is lambda * w_j / numSamples
+            for (int j = 0; j < weights.length; j++) {
+                double penalty = (j == 0) ? 0.0 : lambda * weights[j] / numSamples;
+                weights[j] -= learningRate * (gradients[j] / numSamples + penalty);
+            }
         }
     }
 
@@ -235,9 +264,14 @@ public class AbstractLogisticRegression {
                 }
             }
 
-            for (int c = 0; c < numClasses; c++)
-                for (int j = 0; j <= numFeatures; j++)
-                    multiWeights[c][j] -= learningRate * gradients[c][j] / numSamples;
+            // Apply L2 regularization: add lambda * w_cj to gradient for non-bias weights
+            // Gradient is normalized by numSamples, so penalty is lambda * w_cj / numSamples
+            for (int c = 0; c < numClasses; c++) {
+                for (int j = 0; j <= numFeatures; j++) {
+                    double penalty = (j == 0) ? 0.0 : lambda * multiWeights[c][j] / numSamples;
+                    multiWeights[c][j] -= learningRate * (gradients[c][j] / numSamples + penalty);
+                }
+            }
         }
     }
 
@@ -286,11 +320,17 @@ public class AbstractLogisticRegression {
                 }
             }
 
-            for (int j = 0; j < weights.length; j++)
-                weights[j] -= learningRate * gradW[j] / numSamples;
+            // Apply L2 regularization to weights (not thresholds): add lambda * w_j to gradient for non-bias weights
+            // Gradient is normalized by numSamples, so penalty is lambda * w_j / numSamples
+            for (int j = 0; j < weights.length; j++) {
+                double penalty = (j == 0) ? 0.0 : lambda * weights[j] / numSamples;
+                weights[j] -= learningRate * (gradW[j] / numSamples + penalty);
+            }
 
-            for (int j = 0; j < thresholds.length; j++)
+            // Thresholds are not penalized
+            for (int j = 0; j < thresholds.length; j++) {
                 thresholds[j] -= learningRate * gradT[j] / numSamples;
+            }
         }
     }
 
@@ -643,5 +683,9 @@ public class AbstractLogisticRegression {
 
     public int getEpochs() {
         return epochs;
+    }
+
+    public double getLambda() {
+        return lambda;
     }
 }

@@ -1,7 +1,5 @@
 package models.ml.Preprocessing.Image;
 
-import java.util.Arrays;
-
 /**
  * Stateless, pure image processing operations on {@link ImageData}.
  * <p>

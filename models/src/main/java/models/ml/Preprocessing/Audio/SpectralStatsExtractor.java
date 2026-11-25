@@ -1,7 +1,6 @@
 package models.ml.Preprocessing.Audio;
 
 import models.ml.Preprocessing.Features.AbstractDenseFeatureExtractor;
-import models.ml.Preprocessing.Features.FeatureVectors;
 import models.ml.Utils.Json;
 import models.ml.Utils.JsonFields;
 

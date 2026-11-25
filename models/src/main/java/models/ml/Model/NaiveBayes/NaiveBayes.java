@@ -15,7 +15,6 @@ import models.ml.DatasetHandler.DatasetLoader;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.Model.Metrics;
 import models.ml.Model.Model;
-import models.ml.Model.NaiveBayes.AbstractNaiveBayes;
 
 public class NaiveBayes extends Model {
     public enum NBMETHODS {

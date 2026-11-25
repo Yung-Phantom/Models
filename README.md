@@ -181,10 +181,10 @@ public void pipelineIOSaveLoadExample(@TempDir Path tmp) throws Exception {
             models.ml.Preprocessing.Text.Vectorizer.TfidfVectorizer.fromJson(json)).getVectorizer(),
         NaiveBayes::new
     );
+
     String prediction = loaded.predict("great movie");
     assertEquals("pos", prediction);
 }
-
 ```
 
 > **Security Note**: The model component inside a saved pipeline is Java-serialized. Never load pipeline files from untrusted sources, as Java deserialization can execute arbitrary code.
@@ -261,7 +261,7 @@ public void pipelineIOSaveLoadExample(@TempDir Path tmp) throws Exception {
 - **SVC is dense-only**: Sparse input is only supported by `linearsvc` with `linearkernel`.
 - **Gaussian NB is dense-only**: sparse inputs only for multinomial and bernoulli.
 - **Normal equation is dense-only**: LinearRegression normal equation requires dense matrices; gradient descent supports both.
-- **No regularization or early stopping**: Gradient descent runs for a fixed number of epochs and performs best on scaled features.
+- **No regularization or early stopping**: L2 regularization is available for LinearRegression and LogisticRegression; gradient descent runs for a fixed number of epochs and performs best on scaled features. Early stopping is not implemented.
 - **KNN is brute force**: Exact linear scan over stored instances without KD-tree or ball-tree index structures.
 - **DatasetLoader extension matching**: Matches file extensions strictly in lowercase (`Locale.ROOT`). SQLite requires an explicit label column.
 - **Audio decoding constraints**: AudioDecoder supports only uncompressed WAV PCM 8-bit unsigned and 16-bit signed LE mono/stereo.

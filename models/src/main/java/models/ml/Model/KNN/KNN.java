@@ -16,7 +16,6 @@ import models.ml.DatasetHandler.DatasetLoader;
 import models.ml.DatasetHandler.helpers.DatasetSplit;
 import models.ml.Model.Metrics;
 import models.ml.Model.Model;
-import models.ml.Model.KNN.AbstractKNN;
 
 /**
  * K-Nearest Neighbors classifier.

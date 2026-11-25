@@ -2,7 +2,6 @@ package models.ml.Preprocessing.Text.Vectorizer;
 
 import models.ml.Utils.Json;
 import java.util.*;
-import java.util.regex.Pattern;
 
 public class TfidfVectorizer extends AbstractTextVectorizer {
     private final boolean binary;
