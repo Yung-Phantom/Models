@@ -1,7 +1,12 @@
 package models.ml.Preprocessing.Scaling;
 
+import models.ml.Utils.Json;
+import models.ml.Utils.JsonFields;
+
 import java.util.*;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public class MaxAbsScaler implements Transformer {
     private double[] maxAbs;
@@ -206,46 +211,65 @@ public class MaxAbsScaler implements Transformer {
             throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
-        MaxAbsScaler scaler = new MaxAbsScaler();
+        Object parsed;
+        try {
+            parsed = Json.parse(json);
+        } catch (IllegalArgumentException e) {
+            String msg = e.getMessage();
+            if (msg != null) {
+                if (msg.contains("Expected digit") || msg.contains("Invalid number")) {
+                    if (json.contains("\"maxAbs\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'maxAbs': " + msg);
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Invalid JSON: " + msg);
+        }
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
 
         // Parse maxAbs - required field
-        int maxAbsStart = json.indexOf("\"maxAbs\":[");
-        int maxAbsEnd = json.indexOf("]", maxAbsStart);
-        if (maxAbsStart < 0 || maxAbsEnd <= maxAbsStart) {
-            throw new IllegalArgumentException("Missing or malformed 'maxAbs' field");
+        if (!map.containsKey("maxAbs")) {
+            throw new IllegalArgumentException("Missing required field: maxAbs");
         }
-        String maxAbsStr = json.substring(maxAbsStart + 9, maxAbsEnd).trim();
-        maxAbsStr = maxAbsStr.replace("[", "").replace("]", "");
-        if (maxAbsStr.isEmpty()) {
+        Object maxAbsObj = map.get("maxAbs");
+        if (!(maxAbsObj instanceof List)) {
+            throw new IllegalArgumentException("'maxAbs' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> maxAbsList = (List<Object>) maxAbsObj;
+        if (maxAbsList.isEmpty()) {
             throw new IllegalArgumentException("'maxAbs' array cannot be empty");
         }
-        String[] parts = maxAbsStr.split(",");
-        scaler.maxAbs = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                scaler.maxAbs[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'maxAbs': " + parts[i].trim());
+        MaxAbsScaler scaler = new MaxAbsScaler();
+        scaler.maxAbs = new double[maxAbsList.size()];
+        for (int i = 0; i < maxAbsList.size(); i++) {
+            Object v = maxAbsList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'maxAbs' at index " + i);
             }
+            scaler.maxAbs[i] = ((Number) v).doubleValue();
         }
 
         // Parse numFeatures - required field
-        int numFeaturesStart = json.indexOf("\"numFeatures\":");
-        if (numFeaturesStart < 0) {
-            throw new IllegalArgumentException("Missing 'numFeatures' field");
+        if (!map.containsKey("numFeatures")) {
+            throw new IllegalArgumentException("Missing required field: numFeatures");
         }
-        int start = numFeaturesStart + 14;
-        int end = json.indexOf("}", start);
-        if (end < 0) end = json.length();
-        String numStr = json.substring(start, end).trim();
-        try {
-            scaler.numFeatures = Integer.parseInt(numStr);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid 'numFeatures': " + numStr);
+        Object numFeaturesObj = map.get("numFeatures");
+        if (!(numFeaturesObj instanceof Number)) {
+            throw new IllegalArgumentException("'numFeatures' must be a number");
         }
+        double numFeaturesDouble = ((Number) numFeaturesObj).doubleValue();
+        if (numFeaturesDouble != Math.floor(numFeaturesDouble)) {
+            throw new IllegalArgumentException("'numFeatures' must be a whole number, got " + numFeaturesDouble);
+        }
+        scaler.numFeatures = ((Number) numFeaturesObj).intValue();
 
         if (scaler.maxAbs.length != scaler.numFeatures) {
-            throw new IllegalArgumentException("'maxAbs' length (" + scaler.maxAbs.length + ") does not match 'numFeatures' (" + scaler.numFeatures + ")");
+            throw new IllegalArgumentException("'maxAbs' length does not match 'numFeatures'");
         }
 
         scaler.fitted = true;

@@ -5,7 +5,7 @@ A Java 17 machine-learning library providing classification and regression model
 ## Requirements
 
 - **Java 17+** (compiled for Java 17 bytecode)
-- **Runtime Dependencies**: Pure Java with zero mandatory third-party dependencies. Optional `org.xerial:sqlite-jdbc:3.49.1.0` is required only when loading SQLite databases via `DatasetLoader`. Image and audio I/O use standard JDK modules (`java.desktop`).
+- **Runtime Dependencies**: Pure Java with zero mandatory third-party dependencies. Optional `org.xerial:sqlite-jdbc:3.49.1.0` is required only when loading SQLite databases via `DatasetLoader`. Image and audio I/O use the standard JDK `java.desktop` module.
 
 ## Install
 
@@ -159,6 +159,36 @@ double acc = pipeline.score(split[1].getItems(), split[1].getLabels());
 System.out.println("Accuracy: " + acc);
 ```
 
+### 5. Saving and Loading Pipelines
+<!-- snippet: PipelinePersistenceExamples#pipeline-io-save-load -->
+```java
+@Test
+public void pipelineIOSaveLoadExample(@TempDir Path tmp) throws Exception {
+    // Train and save a text pipeline
+    List<String> texts = List.of("great movie", "loved it", "awesome film", "terrible movie", "hated it", "awful film");
+    List<String> labels = List.of("pos", "pos", "pos", "neg", "neg", "neg");
+
+    TextPipeline pipeline = new TextPipeline(new TfidfVectorizer(), new NaiveBayes());
+    pipeline.fit(texts, labels);
+
+    Path saveDir = tmp.resolve("saved_pipeline");
+    PipelineIO.save(pipeline, saveDir);
+
+    // Later: load and predict
+    TextPipeline loaded = PipelineIO.loadTextPipeline(
+        saveDir,
+        json -> new models.ml.Preprocessing.Text.Vectorizer.TextFeatureExtractor(
+            models.ml.Preprocessing.Text.Vectorizer.TfidfVectorizer.fromJson(json)).getVectorizer(),
+        NaiveBayes::new
+    );
+    String prediction = loaded.predict("great movie");
+    assertEquals("pos", prediction);
+}
+
+```
+
+> **Security Note**: The model component inside a saved pipeline is Java-serialized. Never load pipeline files from untrusted sources, as Java deserialization can execute arbitrary code.
+
 ## Feature Matrix
 
 ### Models
@@ -196,8 +226,8 @@ System.out.println("Accuracy: " + acc);
 | `MfccExtractor` | `AudioData` | 2 * numCoeffs (mean and std per MFCC coefficient) | Dense | Yes |
 | `BagOfWordsVectorizer` | Text `String` | Token occurrence / count sparse vectors | Sparse | Yes |
 | `TfidfVectorizer` | Text `String` | Sublinear/L2-normalized TF-IDF sparse vectors | Sparse | Yes |
-| `ScalingFeatureExtractor` | Extractor + Scaler | Scaled dense features from base extractor | Dense | toJson only |
-| `CompositeFeatureExtractor`| Multi-extractor | Concatenated features from child extractors | Dense | toJson only |
+| `ScalingFeatureExtractor` | Extractor + Scaler | Scaled dense features from base extractor | Dense | Yes |
+| `CompositeFeatureExtractor`| Multi-extractor | Concatenated features from child extractors | Dense | Yes |
 
 ## Package Map
 
@@ -205,7 +235,7 @@ System.out.println("Accuracy: " + acc);
 |---|---|---|
 | `models.ml.DatasetHandler` | Tabular, image, and audio dataset loaders | |
 | `models.ml.DatasetHandler.helpers` | Dataset configurations and split containers | |
-| `models.ml.Model` | Base model interface and evaluation metrics | [models/knn.md](docs/models/knn.md) |
+| `models.ml.Model` | Abstract base class for all models; provides fit/predict/evaluate/save/load | [models/knn.md](docs/models/knn.md) |
 | `models.ml.Model.KNN` | K-Nearest Neighbors classifier | [models/knn.md](docs/models/knn.md) |
 | `models.ml.Model.NaiveBayes` | Gaussian, Multinomial, and Bernoulli Naive Bayes | |
 | `models.ml.Model.SVM` | Support Vector Machines (Linear and Kernel SVC) | |
@@ -229,7 +259,7 @@ System.out.println("Accuracy: " + acc);
 
 - **SVM is binary only**: Multi-class classification requires external One-vs-Rest orchestration.
 - **SVC is dense-only**: Sparse input is only supported by `linearsvc` with `linearkernel`.
-- **Gaussian NB is dense-only**: `multinomial` and `bernoulli` require sparse inputs.
+- **Gaussian NB is dense-only**: sparse inputs only for multinomial and bernoulli.
 - **Normal equation is dense-only**: LinearRegression normal equation requires dense matrices; gradient descent supports both.
 - **No regularization or early stopping**: Gradient descent runs for a fixed number of epochs and performs best on scaled features.
 - **KNN is brute force**: Exact linear scan over stored instances without KD-tree or ball-tree index structures.
@@ -238,7 +268,6 @@ System.out.println("Accuracy: " + acc);
 - **Resampling filter**: Linear interpolation resampling has no anti-aliasing low-pass filter; downsampling may produce aliasing.
 - **Java serialization caveats**: Standard Java serialization is sensitive to class evolution and vulnerable on untrusted inputs.
 - **Thread safety**: Model and transformer instances are mutable and not thread-safe.
-- **Composite/Scaling JSON restore**: `ScalingFeatureExtractor` and `CompositeFeatureExtractor` support `toJson()` only (no `fromJson()`).
 
 ## License
 

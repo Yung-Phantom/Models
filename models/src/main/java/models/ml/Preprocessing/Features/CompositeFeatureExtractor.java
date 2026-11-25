@@ -1,6 +1,7 @@
 package models.ml.Preprocessing.Features;
 
 import models.ml.Utils.Json;
+import models.ml.Utils.JsonFields;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -184,6 +185,74 @@ public final class CompositeFeatureExtractor<T> implements FeatureExtractor<T> {
         return Json.write(map);
     }
 
-    // NOTE: fromJson is not implemented in this task. The JSON format includes
-    // the full child configurations, so a fromJson would need a registry of extractor types.
+    /**
+     * Reconstructs a CompositeFeatureExtractor from its JSON representation.
+     *
+     * @param json JSON string produced by {@link #toJson()}; must not be null or empty
+     * @param <T>  the input type
+     * @return new CompositeFeatureExtractor instance with the same configuration and fitted state
+     * @throws IllegalArgumentException if JSON is malformed, missing fields, or has invalid values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> CompositeFeatureExtractor<T> fromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
+        }
+        Object parsed = Json.parse(json);
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        String type = JsonFields.requireString(map, "type");
+        if (!"composite".equals(type)) {
+            throw new IllegalArgumentException("Expected type 'composite', got '" + type + "'");
+        }
+
+        if (!map.containsKey("children")) {
+            throw new IllegalArgumentException("Missing required field: children");
+        }
+
+        Object childrenObj = map.get("children");
+        if (!(childrenObj instanceof List)) {
+            throw new IllegalArgumentException("'children' must be an array");
+        }
+
+        List<?> childrenList = (List<?>) childrenObj;
+        if (childrenList.isEmpty()) {
+            throw new IllegalArgumentException("'children' array cannot be empty");
+        }
+
+        List<FeatureExtractor<T>> restoredChildren = new ArrayList<>(childrenList.size());
+        for (Object childObj : childrenList) {
+            if (!(childObj instanceof Map)) {
+                throw new IllegalArgumentException("Each child must be an object");
+            }
+            String childJson = Json.write(childObj);
+            FeatureExtractor<T> child = (FeatureExtractor<T>) FeatureExtractorRegistry.fromJson(childJson);
+            restoredChildren.add(child);
+        }
+
+        CompositeFeatureExtractor<T> result = new CompositeFeatureExtractor<>(restoredChildren);
+        // Check if all children are fitted
+        boolean allFitted = true;
+        for (FeatureExtractor<?> child : restoredChildren) {
+            if (!child.isFitted()) {
+                allFitted = false;
+                break;
+            }
+        }
+        if (allFitted) {
+            result.markFitted();
+        }
+        return result;
+    }
+
+    /**
+     * Marks the extractor as fitted without running validation.
+     * Intended for use by {@code fromJson} methods to restore fitted state.
+     */
+    protected void markFitted() {
+        // No additional state to mark; isFitted() checks children
+    }
 }

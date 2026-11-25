@@ -1,6 +1,11 @@
 package models.ml.Preprocessing.Scaling;
 
+import models.ml.Utils.Json;
+import models.ml.Utils.JsonFields;
+
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public class MinMaxScaler implements Transformer {
     private double[] mins;
@@ -117,64 +122,87 @@ public class MinMaxScaler implements Transformer {
             throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
-        MinMaxScaler scaler = new MinMaxScaler();
+        Object parsed;
+        try {
+            parsed = Json.parse(json);
+        } catch (IllegalArgumentException e) {
+            String msg = e.getMessage();
+            if (msg != null) {
+                if (msg.contains("Expected digit") || msg.contains("Invalid number")) {
+                    if (json.contains("\"mins\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'mins': " + msg);
+                    }
+                    if (json.contains("\"maxs\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'maxs': " + msg);
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Invalid JSON: " + msg);
+        }
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
 
         // Parse mins - required field
-        int minsStart = json.indexOf("\"mins\":[");
-        int minsEnd = json.indexOf("]", minsStart);
-        if (minsStart < 0 || minsEnd <= minsStart) {
-            throw new IllegalArgumentException("Missing or malformed 'mins' field");
+        if (!map.containsKey("mins")) {
+            throw new IllegalArgumentException("Missing required field: mins");
         }
-        String minsStr = json.substring(minsStart + 8, minsEnd).trim();
-        minsStr = minsStr.replace("[", "").replace("]", "");
-        if (minsStr.isEmpty()) {
+        Object minsObj = map.get("mins");
+        if (!(minsObj instanceof List)) {
+            throw new IllegalArgumentException("'mins' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> minsList = (List<Object>) minsObj;
+        if (minsList.isEmpty()) {
             throw new IllegalArgumentException("'mins' array cannot be empty");
         }
-        String[] parts = minsStr.split(",");
-        scaler.mins = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                scaler.mins[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'mins': " + parts[i].trim());
+        MinMaxScaler scaler = new MinMaxScaler();
+        scaler.mins = new double[minsList.size()];
+        for (int i = 0; i < minsList.size(); i++) {
+            Object v = minsList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'mins' at index " + i);
             }
+            scaler.mins[i] = ((Number) v).doubleValue();
         }
 
         // Parse maxs - required field
-        int maxsStart = json.indexOf("\"maxs\":[");
-        int maxsEnd = json.indexOf("]", maxsStart);
-        if (maxsStart < 0 || maxsEnd <= maxsStart) {
-            throw new IllegalArgumentException("Missing or malformed 'maxs' field");
+        if (!map.containsKey("maxs")) {
+            throw new IllegalArgumentException("Missing required field: maxs");
         }
-        String maxsStr = json.substring(maxsStart + 8, maxsEnd).trim();
-        maxsStr = maxsStr.replace("[", "").replace("]", "");
-        if (maxsStr.isEmpty()) {
+        Object maxsObj = map.get("maxs");
+        if (!(maxsObj instanceof List)) {
+            throw new IllegalArgumentException("'maxs' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> maxsList = (List<Object>) maxsObj;
+        if (maxsList.isEmpty()) {
             throw new IllegalArgumentException("'maxs' array cannot be empty");
         }
-        parts = maxsStr.split(",");
-        scaler.maxs = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                scaler.maxs[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'maxs': " + parts[i].trim());
+        scaler.maxs = new double[maxsList.size()];
+        for (int i = 0; i < maxsList.size(); i++) {
+            Object v = maxsList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'maxs' at index " + i);
             }
+            scaler.maxs[i] = ((Number) v).doubleValue();
         }
 
         // Parse numFeatures - required field
-        int numFeaturesStart = json.indexOf("\"numFeatures\":");
-        if (numFeaturesStart < 0) {
-            throw new IllegalArgumentException("Missing 'numFeatures' field");
+        if (!map.containsKey("numFeatures")) {
+            throw new IllegalArgumentException("Missing required field: numFeatures");
         }
-        int start = numFeaturesStart + 14;
-        int end = json.indexOf("}", start);
-        if (end < 0) end = json.length();
-        String numStr = json.substring(start, end).trim();
-        try {
-            scaler.numFeatures = Integer.parseInt(numStr);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid 'numFeatures': " + numStr);
+        Object numFeaturesObj = map.get("numFeatures");
+        if (!(numFeaturesObj instanceof Number)) {
+            throw new IllegalArgumentException("'numFeatures' must be a number");
         }
+        double numFeaturesDouble = ((Number) numFeaturesObj).doubleValue();
+        if (numFeaturesDouble != Math.floor(numFeaturesDouble)) {
+            throw new IllegalArgumentException("'numFeatures' must be a whole number, got " + numFeaturesDouble);
+        }
+        scaler.numFeatures = ((Number) numFeaturesObj).intValue();
 
         if (scaler.mins.length != scaler.numFeatures || scaler.maxs.length != scaler.numFeatures) {
             throw new IllegalArgumentException("'mins'/'maxs' length does not match 'numFeatures'");

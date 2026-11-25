@@ -179,4 +179,12 @@ public class TextPipeline {
     public Model getModel() {
         return model;
     }
+
+    /**
+     * Marks the pipeline as fitted without running validation.
+     * Intended for use by {@link PipelineIO} when loading a pre-fitted pipeline.
+     */
+    void markFitted() {
+        this.fitted = true;
+    }
 }

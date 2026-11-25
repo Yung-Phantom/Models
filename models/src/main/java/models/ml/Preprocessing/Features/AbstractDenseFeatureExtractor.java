@@ -29,7 +29,8 @@ public abstract class AbstractDenseFeatureExtractor<T> implements FeatureExtract
                 throw new IllegalArgumentException("input at index " + i + " cannot be null");
             }
         }
-        // Empty list is allowed (matches VectorizerTest precedent for fit)
+        // Empty list is allowed; extractors with no trainable parameters (e.g., stateless)
+        // remain fitted. Subclasses requiring data should override and validate.
         fitted = true;
     }
 

@@ -1,6 +1,10 @@
 package models.ml.Preprocessing.Scaling;
 
+import models.ml.Utils.Json;
+
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public class ZScoreScaler implements Transformer {
     private double[] means;
@@ -134,64 +138,88 @@ public class ZScoreScaler implements Transformer {
             throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
-        ZScoreScaler scaler = new ZScoreScaler();
+        Object parsed;
+        try {
+            parsed = Json.parse(json);
+        } catch (IllegalArgumentException e) {
+            String msg = e.getMessage();
+            // Provide more specific error messages for common cases
+            if (msg != null) {
+                if (msg.contains("Expected digit") || msg.contains("Invalid number")) {
+                    if (json.contains("\"means\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'means': " + msg);
+                    }
+                    if (json.contains("\"stds\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'stds': " + msg);
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Invalid JSON: " + msg);
+        }
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
 
         // Parse means - required field
-        int meansStart = json.indexOf("\"means\":[");
-        int meansEnd = json.indexOf("]", meansStart);
-        if (meansStart < 0 || meansEnd <= meansStart) {
-            throw new IllegalArgumentException("Missing or malformed 'means' field");
+        if (!map.containsKey("means")) {
+            throw new IllegalArgumentException("Missing required field: means");
         }
-        String meansStr = json.substring(meansStart + 9, meansEnd).trim();
-        meansStr = meansStr.replace("[", "").replace("]", "");
-        if (meansStr.isEmpty()) {
+        Object meansObj = map.get("means");
+        if (!(meansObj instanceof List)) {
+            throw new IllegalArgumentException("'means' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> meansList = (List<Object>) meansObj;
+        if (meansList.isEmpty()) {
             throw new IllegalArgumentException("'means' array cannot be empty");
         }
-        String[] parts = meansStr.split(",");
-        scaler.means = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                scaler.means[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'means': " + parts[i].trim());
+        ZScoreScaler scaler = new ZScoreScaler();
+        scaler.means = new double[meansList.size()];
+        for (int i = 0; i < meansList.size(); i++) {
+            Object v = meansList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'means' at index " + i);
             }
+            scaler.means[i] = ((Number) v).doubleValue();
         }
 
         // Parse stds - required field
-        int stdsStart = json.indexOf("\"stds\":[");
-        int stdsEnd = json.indexOf("]", stdsStart);
-        if (stdsStart < 0 || stdsEnd <= stdsStart) {
-            throw new IllegalArgumentException("Missing or malformed 'stds' field");
+        if (!map.containsKey("stds")) {
+            throw new IllegalArgumentException("Missing required field: stds");
         }
-        String stdsStr = json.substring(stdsStart + 8, stdsEnd).trim();
-        stdsStr = stdsStr.replace("[", "").replace("]", "");
-        if (stdsStr.isEmpty()) {
+        Object stdsObj = map.get("stds");
+        if (!(stdsObj instanceof List)) {
+            throw new IllegalArgumentException("'stds' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> stdsList = (List<Object>) stdsObj;
+        if (stdsList.isEmpty()) {
             throw new IllegalArgumentException("'stds' array cannot be empty");
         }
-        parts = stdsStr.split(",");
-        scaler.stds = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                scaler.stds[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'stds': " + parts[i].trim());
+        scaler.stds = new double[stdsList.size()];
+        for (int i = 0; i < stdsList.size(); i++) {
+            Object v = stdsList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'stds' at index " + i);
             }
+            scaler.stds[i] = ((Number) v).doubleValue();
         }
 
         // Parse numFeatures - required field
-        int numFeaturesStart = json.indexOf("\"numFeatures\":");
-        if (numFeaturesStart < 0) {
-            throw new IllegalArgumentException("Missing 'numFeatures' field");
+        if (!map.containsKey("numFeatures")) {
+            throw new IllegalArgumentException("Missing required field: numFeatures");
         }
-        int start = numFeaturesStart + 14;
-        int end = json.indexOf("}", start);
-        if (end < 0) end = json.length();
-        String numStr = json.substring(start, end).trim();
-        try {
-            scaler.numFeatures = Integer.parseInt(numStr);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid 'numFeatures': " + numStr);
+        Object numFeaturesObj = map.get("numFeatures");
+        if (!(numFeaturesObj instanceof Number)) {
+            throw new IllegalArgumentException("'numFeatures' must be a number");
         }
+        double numFeaturesDouble = ((Number) numFeaturesObj).doubleValue();
+        if (numFeaturesDouble != Math.floor(numFeaturesDouble)) {
+            throw new IllegalArgumentException("'numFeatures' must be a whole number, got " + numFeaturesDouble);
+        }
+        scaler.numFeatures = ((Number) numFeaturesObj).intValue();
 
         if (scaler.means.length != scaler.numFeatures || scaler.stds.length != scaler.numFeatures) {
             throw new IllegalArgumentException("'means'/'stds' length does not match 'numFeatures'");

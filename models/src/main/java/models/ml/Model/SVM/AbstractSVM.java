@@ -8,11 +8,18 @@ import java.util.Map;
  * Abstract class for Support Vector Machine (SVM).
  * Implements linear SVM using hinge loss and gradient descent.
  * Kernel functions included for extension.
- * 
+ *
  * @author Justice
  * @version 1.1
  */
 public class AbstractSVM {
+
+    /**
+     * Maximum number of samples allowed for kernel SVM (SVC method).
+     * Kernel matrix allocation is O(n²) in memory; this limit prevents OOM errors.
+     * Default: 10,000 samples (≈ 800 MB for double[][] kernel matrix).
+     */
+    public static final int MAX_SAMPLES = 10_000;
 
     protected double[][] dataset;
     protected int numSamples;
@@ -39,6 +46,11 @@ public class AbstractSVM {
     protected double gamma;
     protected int degree;
     protected double coef0;
+
+    // Feature normalization for scale-invariant training
+    private double[] featureMeans;
+    private double[] featureStds;
+    private boolean featuresNormalized = false;
 
     public AbstractSVM(double[][] dataset,
             double[] labels, double C, double learningRate, int epochs,
@@ -94,6 +106,12 @@ public class AbstractSVM {
         this.gamma = gamma;
         this.degree = degree;
         this.coef0 = coef0;
+
+        // Normalize features for scale-invariant training (only for dense, linear methods)
+        if (!sparse && "linearsvc".equalsIgnoreCase(this.method)) {
+            normalizeFeatures();
+        }
+
         switch (this.method) {
             case "svc":
                 computeSVC();
@@ -104,6 +122,74 @@ public class AbstractSVM {
             default:
                 System.out.println("Method not supported: " + method);
         }
+
+        // Convert weights back to original feature space if normalization was applied
+        denormalizeWeights();
+    }
+
+    /**
+     * Normalizes features to zero mean and unit variance for scale-invariant training.
+     * Stores normalization parameters for use during prediction.
+     */
+    private void normalizeFeatures() {
+        featureMeans = new double[numFeatures];
+        featureStds = new double[numFeatures];
+
+        // Compute means
+        for (int i = 0; i < numSamples; i++) {
+            double[] row = dataset[i];
+            for (int j = 0; j < numFeatures; j++) {
+                featureMeans[j] += row[j];
+            }
+        }
+        for (int j = 0; j < numFeatures; j++) {
+            featureMeans[j] /= numSamples;
+        }
+
+        // Compute stds
+        for (int i = 0; i < numSamples; i++) {
+            double[] row = dataset[i];
+            for (int j = 0; j < numFeatures; j++) {
+                double diff = row[j] - featureMeans[j];
+                featureStds[j] += diff * diff;
+            }
+        }
+        for (int j = 0; j < numFeatures; j++) {
+            featureStds[j] = Math.sqrt(featureStds[j] / numSamples);
+            // Avoid division by zero for constant features
+            if (featureStds[j] == 0.0) {
+                featureStds[j] = 1.0;
+            }
+        }
+
+        // Normalize dataset in-place
+        for (int i = 0; i < numSamples; i++) {
+            double[] row = dataset[i];
+            for (int j = 0; j < numFeatures; j++) {
+                row[j] = (row[j] - featureMeans[j]) / featureStds[j];
+            }
+        }
+
+        featuresNormalized = true;
+    }
+
+    /**
+     * Converts weights and bias from normalized feature space back to original feature space.
+     * Called after training on normalized features.
+     */
+    private void denormalizeWeights() {
+        if (!featuresNormalized) {
+            return;
+        }
+        // w_orig[j] = w_norm[j] / std[j]
+        // bias_orig = bias_norm - sum(w_norm[j] * mean[j] / std[j])
+        double biasAdjustment = 0.0;
+        for (int j = 0; j < numFeatures; j++) {
+            weights[j] = weights[j] / featureStds[j];
+            biasAdjustment += weights[j] * featureMeans[j];
+        }
+        bias = bias - biasAdjustment;
+        featuresNormalized = false; // weights are now in original space
     }
 
     public AbstractSVM(List<Map<Integer, Double>> sparseDataset, double[] labels, double C,
@@ -200,6 +286,13 @@ public class AbstractSVM {
     }
 
     public void computeSVC() {
+        if (numSamples > MAX_SAMPLES) {
+            throw new IllegalArgumentException(
+                "Kernel SVM (SVC) requires allocating an n x n kernel matrix. " +
+                "Maximum allowed samples: " + MAX_SAMPLES + ", got: " + numSamples + ". " +
+                "Use LinearSVC (method='linearsvc') for larger datasets."
+            );
+        }
         double[][] K = new double[numSamples][numSamples];
         for (int i = 0; i < numSamples; i++) {
             double[] xi = getX(i);

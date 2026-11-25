@@ -1,7 +1,9 @@
 package models.ml.Preprocessing.Features;
 
 import models.ml.Preprocessing.Scaling.Transformer;
+import models.ml.Preprocessing.Scaling.ZScoreScaler;
 import models.ml.Utils.Json;
+import models.ml.Utils.JsonFields;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,6 +67,7 @@ public final class ScalingFeatureExtractor<T> implements FeatureExtractor<T> {
         child.fit(inputs);
 
         // Get dense features from child and fit the scaler on them
+        // Scaler will validate non-empty data
         double[][] denseFeatures = child.transformDense(inputs);
         scaler.fit(denseFeatures);
 
@@ -155,7 +158,65 @@ public final class ScalingFeatureExtractor<T> implements FeatureExtractor<T> {
         return Json.write(map);
     }
 
-    // NOTE: fromJson is not implemented in this task.
-    // A fromJson would need a registry of extractor types to deserialize the child
-    // and a registry of scaler types to deserialize the scaler.
+    /**
+     * Reconstructs a ScalingFeatureExtractor from its JSON representation.
+     *
+     * @param json JSON string produced by {@link #toJson()}; must not be null or empty
+     * @param <T>  the input type
+     * @return new ScalingFeatureExtractor instance with the same configuration and fitted state
+     * @throws IllegalArgumentException if JSON is malformed, missing fields, or has invalid values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> ScalingFeatureExtractor<T> fromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
+        }
+        Object parsed = Json.parse(json);
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        String type = JsonFields.requireString(map, "type");
+        if (!"scaled".equals(type)) {
+            throw new IllegalArgumentException("Expected type 'scaled', got '" + type + "'");
+        }
+
+        if (!map.containsKey("extractor")) {
+            throw new IllegalArgumentException("Missing required field: extractor");
+        }
+        if (!map.containsKey("scaler")) {
+            throw new IllegalArgumentException("Missing required field: scaler");
+        }
+
+        Object extractorObj = map.get("extractor");
+        Object scalerObj = map.get("scaler");
+
+        if (!(extractorObj instanceof Map)) {
+            throw new IllegalArgumentException("'extractor' must be an object");
+        }
+        if (!(scalerObj instanceof Map)) {
+            throw new IllegalArgumentException("'scaler' must be an object");
+        }
+
+        String extractorJson = Json.write(extractorObj);
+        String scalerJson = Json.write(scalerObj);
+
+        FeatureExtractor<T> child = (FeatureExtractor<T>) FeatureExtractorRegistry.fromJson(extractorJson);
+        Transformer scaler = ScalerRegistry.fromJson(scalerJson);
+
+        ScalingFeatureExtractor<T> result = new ScalingFeatureExtractor<>(child, scaler);
+        if (child.isFitted()) {
+            result.markFitted();
+        }
+        return result;
+    }
+
+    /**
+     * Marks the extractor as fitted without running validation.
+     * Intended for use by {@code fromJson} methods to restore fitted state.
+     */
+    protected void markFitted() {
+        this.fitted = true;
+    }
 }

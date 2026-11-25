@@ -1,6 +1,11 @@
 package models.ml.Preprocessing.Scaling;
 
+import models.ml.Utils.Json;
+import models.ml.Utils.JsonFields;
+
 import java.util.*;
+import java.util.List;
+import java.util.Map;
 
 public class SimpleImputer implements Transformer {
     public enum Strategy {
@@ -152,86 +157,97 @@ public class SimpleImputer implements Transformer {
             throw new IllegalArgumentException("JSON string cannot be null or empty");
         }
 
-        // Parse strategy - required field
-        Strategy strategy = null;
-        int strategyStart = json.indexOf("\"strategy\":\"");
-        if (strategyStart < 0) {
-            throw new IllegalArgumentException("Missing 'strategy' field");
-        }
-        int start = strategyStart + 12;
-        int end = json.indexOf("\"", start);
-        if (end <= start) {
-            throw new IllegalArgumentException("Malformed 'strategy' field");
-        }
+        Object parsed;
         try {
-            strategy = Strategy.valueOf(json.substring(start, end));
+            parsed = Json.parse(json);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid strategy: " + json.substring(start, end));
+            String msg = e.getMessage();
+            if (msg != null) {
+                if (msg.contains("Expected digit") || msg.contains("Invalid number")) {
+                    if (json.contains("\"fillValues\"")) {
+                        throw new IllegalArgumentException("Invalid number in 'fillValues': " + msg);
+                    }
+                    if (json.contains("\"constantValue\"")) {
+                        throw new IllegalArgumentException("Invalid 'constantValue': " + msg);
+                    }
+                    if (json.contains("\"numFeatures\"")) {
+                        throw new IllegalArgumentException("Invalid 'numFeatures': " + msg);
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Invalid JSON: " + msg);
+        }
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        // Parse strategy - required field
+        if (!map.containsKey("strategy")) {
+            throw new IllegalArgumentException("Missing required field: strategy");
+        }
+        String strategyStr = JsonFields.requireString(map, "strategy");
+        Strategy strategy;
+        try {
+            strategy = Strategy.valueOf(strategyStr);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid strategy: " + strategyStr);
         }
 
         // Parse constantValue - required field
-        double constantValue = 0.0;
-        int constStart = json.indexOf("\"constantValue\":");
-        if (constStart < 0) {
-            throw new IllegalArgumentException("Missing 'constantValue' field");
+        if (!map.containsKey("constantValue")) {
+            throw new IllegalArgumentException("Missing required field: constantValue");
         }
-        start = constStart + 16;
-        end = json.indexOf(",", start);
-        if (end < 0) end = json.indexOf("}", start);
-        if (end <= start) {
-            throw new IllegalArgumentException("Malformed 'constantValue' field");
+        Object constantValueObj = map.get("constantValue");
+        if (!(constantValueObj instanceof Number)) {
+            throw new IllegalArgumentException("'constantValue' must be a number");
         }
-        String valStr = json.substring(start, end).trim();
-        try {
-            constantValue = Double.parseDouble(valStr);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid 'constantValue': " + valStr);
-        }
+        double constantValue = ((Number) constantValueObj).doubleValue();
 
         SimpleImputer imputer = new SimpleImputer(strategy, constantValue);
 
         // Parse fillValues - required field
-        int fillStart = json.indexOf("\"fillValues\":[");
-        int fillEnd = json.indexOf("]", fillStart);
-        if (fillStart < 0 || fillEnd <= fillStart) {
-            throw new IllegalArgumentException("Missing or malformed 'fillValues' field");
+        if (!map.containsKey("fillValues")) {
+            throw new IllegalArgumentException("Missing required field: fillValues");
         }
-        String fillStr = json.substring(fillStart + 13, fillEnd).trim();
-        fillStr = fillStr.replace("[", "").replace("]", "");
-        if (fillStr.isEmpty()) {
+        Object fillValuesObj = map.get("fillValues");
+        if (!(fillValuesObj instanceof List)) {
+            throw new IllegalArgumentException("'fillValues' must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> fillValuesList = (List<Object>) fillValuesObj;
+        if (fillValuesList.isEmpty()) {
             throw new IllegalArgumentException("'fillValues' array cannot be empty");
         }
-        String[] parts = fillStr.split(",");
-        imputer.fillValues = new double[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                imputer.fillValues[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid number in 'fillValues': " + parts[i].trim());
+        imputer.fillValues = new double[fillValuesList.size()];
+        for (int i = 0; i < fillValuesList.size(); i++) {
+            Object v = fillValuesList.get(i);
+            if (!(v instanceof Number)) {
+                throw new IllegalArgumentException("Invalid number in 'fillValues' at index " + i);
             }
+            imputer.fillValues[i] = ((Number) v).doubleValue();
         }
-        imputer.numFeatures = parts.length;
-        imputer.fitted = true;
 
         // Parse numFeatures - required field
-        int numFeaturesStart = json.indexOf("\"numFeatures\":");
-        if (numFeaturesStart < 0) {
-            throw new IllegalArgumentException("Missing 'numFeatures' field");
+        if (!map.containsKey("numFeatures")) {
+            throw new IllegalArgumentException("Missing required field: numFeatures");
         }
-        start = numFeaturesStart + 14;
-        end = json.indexOf("}", start);
-        if (end < 0) end = json.length();
-        String numStr = json.substring(start, end).trim();
-        try {
-            imputer.numFeatures = Integer.parseInt(numStr);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid 'numFeatures': " + numStr);
+        Object numFeaturesObj = map.get("numFeatures");
+        if (!(numFeaturesObj instanceof Number)) {
+            throw new IllegalArgumentException("'numFeatures' must be a number");
         }
+        double numFeaturesDouble = ((Number) numFeaturesObj).doubleValue();
+        if (numFeaturesDouble != Math.floor(numFeaturesDouble)) {
+            throw new IllegalArgumentException("'numFeatures' must be a whole number, got " + numFeaturesDouble);
+        }
+        imputer.numFeatures = ((Number) numFeaturesObj).intValue();
 
         if (imputer.fillValues.length != imputer.numFeatures) {
             throw new IllegalArgumentException("'fillValues' length does not match 'numFeatures'");
         }
 
+        imputer.fitted = true;
         return imputer;
     }
 }

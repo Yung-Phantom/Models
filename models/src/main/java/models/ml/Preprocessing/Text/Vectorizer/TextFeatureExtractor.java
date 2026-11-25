@@ -68,4 +68,37 @@ public final class TextFeatureExtractor implements FeatureExtractor<String> {
     public String toJson() {
         return vectorizer.toJson();
     }
+
+    /**
+     * Reconstructs a TextFeatureExtractor from its JSON representation.
+     *
+     * @param json JSON string produced by {@link #toJson()}; must not be null or empty
+     * @return new TextFeatureExtractor instance with the same configuration and fitted state
+     * @throws IllegalArgumentException if JSON is malformed, missing fields, or has invalid values
+     */
+    public static TextFeatureExtractor fromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
+        }
+        Object parsed = models.ml.Utils.Json.parse(json);
+        if (!(parsed instanceof Map)) {
+            throw new IllegalArgumentException("JSON root must be an object");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        // Detect vectorizer type - currently TF-IDF and BagOfWords are supported
+        // Check for TF-IDF specific fields (has idf)
+        if (map.containsKey("idf") && map.containsKey("vocab") && map.containsKey("binary")) {
+            TfidfVectorizer vec = TfidfVectorizer.fromJson(json);
+            return new TextFeatureExtractor(vec);
+        }
+        // Check for BagOfWords specific fields (no idf, has vocab)
+        if (map.containsKey("vocab") && map.containsKey("binary") && !map.containsKey("idf")) {
+            BagOfWordsVectorizer vec = BagOfWordsVectorizer.fromJson(json);
+            return new TextFeatureExtractor(vec);
+        }
+
+        throw new IllegalArgumentException("Unknown or unsupported vectorizer type");
+    }
 }

@@ -34,7 +34,7 @@ public final class SqliteLoader {
             }
             String tableName = table.getString("name");
 
-            String query = "SELECT * FROM " + tableName;
+            String query = "SELECT * FROM " + quoteIdentifier(tableName);
             try (ResultSet rs = stmt.executeQuery(query)) {
                 ResultSetMetaData md = rs.getMetaData();
                 int cols = md.getColumnCount();
@@ -57,5 +57,21 @@ public final class SqliteLoader {
                 return rows;
             }
         }
+    }
+
+    /**
+     * Quotes an SQLite identifier (table or column name) safely.
+     * Escapes embedded double quotes by doubling them, then wraps in double quotes.
+     *
+     * @param identifier the identifier to quote; must not be null
+     * @return quoted identifier suitable for use in SQL queries
+     * @throws IllegalArgumentException if identifier is null
+     */
+    public static String quoteIdentifier(String identifier) {
+        if (identifier == null) {
+            throw new IllegalArgumentException("Identifier cannot be null");
+        }
+        // Escape embedded double quotes by doubling them, then wrap in double quotes
+        return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 }

@@ -274,4 +274,12 @@ public class FeaturePipeline<T> {
     public DataMode getDataMode() {
         return dataMode;
     }
+
+    /**
+     * Marks the pipeline as fitted without running validation.
+     * Intended for use by {@link PipelineIO} when loading a pre-fitted pipeline.
+     */
+    void markFitted() {
+        this.fitted = true;
+    }
 }
