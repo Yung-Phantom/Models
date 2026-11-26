@@ -33,8 +33,8 @@ import models.ml.Preprocessing.Scaling.Transformer;
  * <p>
  * The demo uses two datasets:
  * <ul>
- *   <li>SVMtrain.csv - Classification dataset (Titanic survival)</li>
- *   <li>winequality-red.csv - Regression dataset (wine quality prediction)</li>
+ * <li>SVMtrain.csv - Classification dataset (Titanic survival)</li>
+ * <li>winequality-red.csv - Regression dataset (wine quality prediction)</li>
  * </ul>
  * </p>
  * <p>
@@ -64,14 +64,16 @@ public class App {
          * Executes the following experiments:
          * </p>
          * <ul>
-         *   <li>Classification models on SVMtrain.csv: Naive Bayes, KNN, SVM, Logistic Regression (binary & multinomial)</li>
-         *   <li>Preprocessing experiments with ZScore, MinMax, and MaxAbs scalers</li>
-         *   <li>Regression models on winequality-red.csv: Linear Regression (normal equation & gradient descent)</li>
-         *   <li>Model save/load verification</li>
+         * <li>Classification models on SVMtrain.csv: Naive Bayes, KNN, SVM, Logistic
+         * Regression (binary & multinomial)</li>
+         * <li>Preprocessing experiments with ZScore, MinMax, and MaxAbs scalers</li>
+         * <li>Regression models on winequality-red.csv: Linear Regression (normal
+         * equation & gradient descent)</li>
+         * <li>Model save/load verification</li>
          * </ul>
          *
          * @param args command-line arguments (unused)
-         * @throws IOException if dataset files cannot be read
+         * @throws IOException  if dataset files cannot be read
          * @throws SQLException if SQLite database access fails
          */
         public static void main(String[] args)
@@ -410,7 +412,8 @@ public class App {
         /**
          * Prints classification evaluation metrics.
          *
-         * @param results map of metric names to values (accuracy, precision, recall, etc.)
+         * @param results map of metric names to values (accuracy, precision, recall,
+         *                etc.)
          */
         private static void printClassificationResults(
                         Map<String, Double> results) {
